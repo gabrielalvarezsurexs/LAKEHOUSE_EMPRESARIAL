@@ -59,6 +59,19 @@ Windows 11, 31 GB RAM, 24 hilos, Docker 29.5 + Compose 5.1 (el daemon se prende 
 - Trampas: hadoop-aws debe coincidir con la versión de Hadoop que trae PySpark (3.3.4 para Spark 3.5); sin
   `path.style.access` MinIO responde 403/404; un 403 casi siempre son llaves que no corresponden al bucket.
 - `OPTIMIZE ... ZORDER BY` y `VACUUM` están disponibles en delta-spark open source.
+- Escritura idempotente por archivo (F2): `mode("overwrite").option("replaceWhere", "_file_sha256 = '<hash>'")`
+  reemplaza solo las filas de ese archivo en una sola transacción; si la tabla no existe se crea con `append`.
+  Delta valida que todas las filas escritas cumplan el predicado.
+- `spark.createDataFrame(filas, contrato.spark_schema())`: el esquema sale del DDL del contrato
+  (`_parse_datatype_string`, necesita SparkSession activa). Las fechas deben ir como `datetime` con zona UTC.
+
+## boto3 (archivos crudos en landing)
+
+- Para objetos sueltos (subir JSON, caché de MusicBrainz) se usa boto3, no Spark: `endpoint_url` de MinIO,
+  `addressing_style: path`, `signature_version: s3v4`, reintentos `standard`. Envoltura en
+  `lakehouse.common.storage.S3ObjectStore`; las pruebas usan una versión en memoria (`tests/conftest.py`).
+- Los metadatos de objeto (`sha256`, `original-name`) viajan como headers: solo ASCII, y boto3 los regresa en
+  minúsculas.
 
 ## Dagster
 
@@ -87,6 +100,14 @@ Windows 11, 31 GB RAM, 24 hilos, Docker 29.5 + Compose 5.1 (el daemon se prende 
   `GET /ws/2/artist/<mbid>?inc=genres&fmt=json`. `inc=genres` no requiere autenticación.
 - User-Agent obligatorio (si falta, se trata como anónimo y se limita); ritmo seguro: 1 petición por segundo;
   503 = demasiadas, reintentar con espera.
+- Implementado en `lakehouse.ingestion.musicbrainz`: búsqueda con `limit=5` y la frase escapada para Lucene
+  (`"` y `\`); se acepta un candidato solo con `score >= 90` y nombre (o alias) igual tras quitar acentos,
+  mayúsculas y signos. Reintenta 429/5xx y errores de red con espera 2, 4, 8 s (o `Retry-After`); 404 y otros
+  4xx no se reintentan. Los errores no se cachean, así que la siguiente corrida los vuelve a pedir.
+- En la práctica la API responde 503 en ~1 de cada 10 peticiones aun a 1 req/s; los reintentos van a nivel
+  DEBUG y el resumen final trae `reintentos=N`. Para verlos uno por uno: `LOG_LEVEL=DEBUG`.
+- Aviso normal de Spark en la ingesta: `SparkStringUtils: Truncated the string representation of a plan` (el
+  esquema tiene muchas columnas; no afecta los datos).
 - Fuentes: [API](https://musicbrainz.org/doc/MusicBrainz_API), [Rate limiting](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting).
 
 ## Spotify Web API (plan B, no se usa)

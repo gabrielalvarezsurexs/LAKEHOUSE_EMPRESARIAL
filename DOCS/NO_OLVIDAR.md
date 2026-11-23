@@ -58,6 +58,9 @@ la sección "Retomar aquí" de [ROADMAP.md](ROADMAP.md). Si algo de aquí cambia
 - **Las capturas del tablero sí muestran artistas y canciones reales:** el dueño de los datos las aprueba antes de
   subirlas a `ENTREGABLES/`.
 - `ip_addr`: hash con sal en Bronce, se elimina en Plata. La sal y las llaves viven en `.env` (nunca se imprime).
+  **La sal no se cambia nunca** (`IP_HASH_SALT`): si cambia, los hashes ya no coinciden entre corridas.
+- **Nunca mezclar sintéticos y reales en el mismo MinIO.** La carga a landing lo impide; para cambiar de datos:
+  `docker compose down -v` (borra el volumen) y volver a correr.
 - MusicBrainz: User-Agent genérico sin datos personales; 1 petición por segundo; corrida única cacheada.
 
 ## Decisiones técnicas que no se reabren (detalle en ARQUITECTURA.md)

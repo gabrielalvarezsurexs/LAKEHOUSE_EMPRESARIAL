@@ -52,6 +52,10 @@ services:
       SPARK_DRIVER_MEMORY: ${SPARK_DRIVER_MEMORY:-4g}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       RUN_SPARK_TESTS: "1"
+      # Ingesta (F2): la sal la valida el codigo (falla con mensaje claro si falta o es corta).
+      IP_HASH_SALT: ${IP_HASH_SALT:-}
+      SPOTIFY_SOURCE_DIR: /datos_spotify
+      MUSICBRAINZ_USER_AGENT: ${MUSICBRAINZ_USER_AGENT:-}
     ports:
       - "4040:4040"  # Spark UI (mientras corre un job)
     volumes:

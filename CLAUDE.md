@@ -45,6 +45,9 @@ con Spark), con gobernanza, un modelo de ML que lee de Oro y un tablero de BI. I
 - Servicios (MinIO, Spark, Dagster, MLflow, Superset) con Docker Compose; la imagen instala con `uv sync --frozen`.
 - Infra (F1): `docker compose up -d --build`; smoke: `docker compose exec lakehouse python -m lakehouse.common.smoke`;
   pruebas con Spark: `docker compose exec lakehouse pytest`. El contenedor monta `src/` y `tests/` (sin rebuild).
+- Ingesta (F2), dentro del contenedor: `python -m lakehouse.ingestion all` (landing + Bronce; idempotente),
+  `... genres` (MusicBrainz, ~55 min la primera vez, luego caché), `... synthetic --out <dir>` (datos falsos).
+  Ayuda: `python -m lakehouse.ingestion --help`. Necesita `IP_HASH_SALT` en `.env`.
 - Los comandos exactos de cada pieza se agregan aquí al cerrar su fase.
 
 ## Seguridad y privacidad

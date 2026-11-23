@@ -1,0 +1,12 @@
+{
+  "id": "11111111-2222-3333-4444-555555555555",
+  "name": "Los Ejémplos",
+  "sort-name": "Ejémplos, Los",
+  "type": "Group",
+  "country": "MX",
+  "genres": [
+    {"id": "g1", "name": "rock en español", "count": 3, "disambiguation": ""},
+    {"id": "g2", "name": "pop rock", "count": 5, "disambiguation": ""},
+    {"id": "g3", "name": "latin rock", "count": 3, "disambiguation": ""}
+  ]
+}

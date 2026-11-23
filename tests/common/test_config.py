@@ -19,6 +19,21 @@ def test_load_settings_defaults():
     assert settings.s3_ssl is False
 
 
+def test_ip_salt_is_required_long_and_hidden():
+    with pytest.raises(ConfigError, match="IP_HASH_SALT"):
+        load_settings(BASE_ENV).require_ip_salt()
+    with pytest.raises(ConfigError, match="IP_HASH_SALT"):
+        load_settings({**BASE_ENV, "IP_HASH_SALT": "corta"}).require_ip_salt()
+    settings = load_settings({**BASE_ENV, "IP_HASH_SALT": "una-sal-larga-de-prueba"})
+    assert settings.require_ip_salt() == "una-sal-larga-de-prueba"
+    assert "una-sal" not in repr(settings)
+
+
+def test_musicbrainz_user_agent_is_generic_by_default():
+    agent = load_settings(BASE_ENV).musicbrainz_user_agent
+    assert "@" not in agent and "github" not in agent.lower()
+
+
 def test_https_enables_ssl():
     assert load_settings({**BASE_ENV, "S3_ENDPOINT": "https://s3.local:9000"}).s3_ssl is True
 
@@ -42,9 +57,11 @@ def test_invalid_endpoint_raises(endpoint):
 
 
 def test_secrets_not_in_repr():
-    text = repr(load_settings(BASE_ENV))
-    assert "user" not in text
-    assert "secret" not in text
+    text = repr(
+        load_settings({**BASE_ENV, "S3_ACCESS_KEY": "llave-acceso-x", "S3_SECRET_KEY": "llave-secreta-y"})
+    )
+    assert "llave-acceso-x" not in text
+    assert "llave-secreta-y" not in text
 
 
 def test_layer_and_table_uris():

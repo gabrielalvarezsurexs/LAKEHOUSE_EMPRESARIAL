@@ -38,10 +38,15 @@ Cada archivo es un arreglo JSON de objetos planos (un objeto = una reproducción
 | `shuffle` | bool | 0 / 0 | |
 | `skipped` | bool | 0 / 0 | Solo 461 + 36 en `true`: Spotify lo llena poco; no sirve solo como etiqueta |
 | `offline` | bool | 0 / 0 | |
-| `offline_timestamp` | int (epoch) | 13,778 / 0 | Null cuando no aplica |
+| `offline_timestamp` | int (epoch) | 13,778 / 0 | Null cuando no aplica. Unidades mezcladas: 1,940 en segundos y 25 en milisegundos (H-003) |
 | `incognito_mode` | bool | 0 / 0 | |
 
-Distintos (archivo 0): 3,539 canciones, 1,283 artistas, 3 países, 66 plataformas.
+Distintos (archivo 0): 3,539 canciones, 1,283 artistas, 3 países, 66 plataformas. En los dos archivos: 1,301
+artistas; 90 filas sin canción, de las cuales 52 son episodios y 38 no traen ni canción ni episodio; IPs: 15,526
+IPv4 y 217 IPv6.
+
+Validación de F2 (2026-11-22): las 15,743 filas cumplen el contrato (`lakehouse.governance.contracts`), 0 a
+cuarentena y 0 campos fuera del contrato. `ts` siempre viene como `AAAA-MM-DDTHH:MM:SSZ`.
 
 ### 1.3 Reglas que salen de este perfil (para Plata)
 
@@ -63,8 +68,10 @@ El historial no trae géneros. Se agregan por artista con **MusicBrainz** (grati
 - Búsqueda por nombre de artista, se toma el candidato solo si el score es alto y el nombre coincide normalizado;
   si hay duda, sin género (no se inventa). La cobertura se reporta (artistas y reproducciones con género).
 - Límite: ~1 petición por segundo y User-Agent obligatorio (genérico, configurable en `.env`, sin datos
-  personales). Para ~1,300 artistas son ~25 min **una sola vez**: las respuestas crudas se guardan en landing y
-  las corridas siguientes solo piden los artistas nuevos.
+  personales). Son 2 peticiones por artista con match (búsqueda + géneros) y 1 sin match: para 1,301 artistas,
+  **~55 min una sola vez** (medido el 2026-11-23: la API responde 503 seguido y el cliente reintenta). Resultado:
+  1,098 de 1,301 artistas con match confiable (84%). Las respuestas crudas se guardan en `landing/musicbrainz/api/` y las corridas
+  siguientes solo piden los artistas nuevos (si se corta, se re-corre y sigue donde iba).
 - **Spotify Web API descartada como fuente principal:** desde febrero de 2026 el modo desarrollo exige Premium,
   limita usuarios y quitó `popularity` y `followers` de artistas; `genres` no está quitado oficialmente pero se
   reporta vacío o en desuso. Queda como plan B documentado, no se implementa salvo que MusicBrainz cubra muy poco.
@@ -74,3 +81,8 @@ El historial no trae géneros. Se agregan por artista con **MusicBrainz** (grati
 Generador con **el mismo esquema exacto** de la §1.2 y distribuciones parecidas, sin datos reales. Sirve para que
 el profe y CI corran el pipeline completo sin nuestros datos. Canciones y artistas inventados; los géneros
 sintéticos se generan junto con ellos (CI no llama a MusicBrainz).
+
+- Comando: `python -m lakehouse.ingestion synthetic --out <carpeta> --rows 5000 --seed 42` (corre también local
+  con `uv run`). Determinista por semilla; IPs de los rangos de documentación (RFC 5737/3849).
+- Los archivos llevan `SINTETICO` en el nombre y la carga a landing **se niega a mezclarlos con reales**: para
+  cambiar de datos se borra el volumen (`docker compose down -v`).

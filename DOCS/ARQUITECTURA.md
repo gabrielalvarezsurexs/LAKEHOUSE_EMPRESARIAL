@@ -46,7 +46,7 @@ flowchart LR
 | D5 | **Spark (PySpark) en modo local dentro de un contenedor** | Lo vimos en clase. En contenedor se evita winutils/Hadoop de Windows | Cluster master/worker (más RAM, mismo resultado con 15k filas) |
 | D6 | **Dagster** como orquestador | Assets por capa con grafo de linaje visual, asset checks (calidad por capa), schedules y sensores: evidencia directa para 3 criterios de la rúbrica | Airflow (más pesado, sin linaje de datos nativo) |
 | D7 | La lógica vive en `src/lakehouse/` como funciones puras con CLI; Dagster solo las envuelve | Separa autoría (Nora orquesta, cada rol su lógica) y permite probar sin orquestador | Lógica dentro de los assets |
-| D8 | **Seudonimización de `ip_addr` en Bronce** (SHA-256 con sal), se elimina en Plata | Privacidad desde la primera capa tabular; el crudo solo existe en landing (bucket restringido) | Guardar la IP en claro en Bronce |
+| D8 | **Seudonimización de `ip_addr` en Bronce** (HMAC-SHA256 con la sal `IP_HASH_SALT`), se elimina en Plata. La cuarentena también guarda el hash, no la IP | Privacidad desde la primera capa tabular; el crudo solo existe en landing (bucket restringido) | Guardar la IP en claro en Bronce |
 | D9 | Géneros con **MusicBrainz**, respuestas crudas cacheadas en landing | Gratis, sin llave; la API de Spotify se cerró en 2026 (ver DATOS_FUENTE §2) | Spotify API, dataset de Kaggle |
 | D10 | **Oro en modelo estrella** + marts de KPIs | BI rápido (consultas sobre tablas chicas y agregadas) y ML con features listas | Una tabla ancha |
 | D11 | ML: **predicción de skip** (clasificación binaria), split temporal | Un solo usuario: no hay deserción entre usuarios; el skip tiene valor de negocio (curación de playlists) y miles de etiquetas | Recomendador (sin otros usuarios), clustering (métricas débiles) |
@@ -58,6 +58,7 @@ flowchart LR
 | D17 | Usuarios de MinIO por servicio con políticas mínimas (ingesta, transformación, BI solo lectura de `gold`) | Seguridad demostrable para Gobernanza | Usar el root en todo |
 | D18 | **uv** para todo lo local (`pyproject.toml` + `uv.lock` versionados, Python 3.11); la imagen Docker instala con `uv sync --frozen` del mismo lock | Un solo manejador y versiones idénticas en local, contenedor y CI | pip/requirements por separado |
 | D19 | **Código en la raíz**; `ENTREGABLES/` solo con lo que se entrega y no es código, numerado como el PDF | El revisor encuentra cada entregable sin buscar; el código queda como un proyecto Python normal | Todo dentro de `ENTREGABLES/` |
+| D20 | Ingesta: archivos de landing con **boto3**; cada registro se **valida en Python contra el contrato** y luego se escribe a Delta con Spark. Idempotencia con `replaceWhere` sobre el SHA-256 del archivo | Cuarentena por registro con causa exacta (`bad_type:ms_played`); el lector JSON de Spark con `multiLine` marca corrupto el archivo entero. `replaceWhere` hace que re-correr (aun tras una caída a la mitad) no duplique. 15k filas caben de sobra en el driver | Lector JSON de Spark en modo PERMISSIVE; `append` simple |
 
 ## 2.1 Estructura del repo
 
@@ -85,10 +86,12 @@ DOCS/  MDS_DE_ESTUDIO/    docs de trabajo y guías por integrante
 
 | Capa | Tabla | Grano | Notas |
 |---|---|---|---|
-| landing | `spotify/<fecha>/<archivo>.json`, `musicbrainz/<artista>.json` | archivo | Crudo intacto |
-| bronze | `spotify_streams` | reproducción | Campos fuente + `ip_addr_hash` + `_source_file`, `_file_sha256`, `_batch_id`, `_ingested_at` |
-| bronze | `musicbrainz_artists` | artista consultado | Respuesta cruda + metadatos |
-| bronze | `_ingestion_log`, `_quarantine` | archivo / registro | Auditoría y errores |
+| landing | `spotify/<fecha>/<archivo>.json` (metadato `sha256`), `musicbrainz/<api\|synthetic>/<hash del nombre>.json` | archivo | Crudo intacto |
+| bronze | `spotify_streams` | reproducción | Campos fuente (`ts` ya como timestamp UTC) + `ip_addr_hash` + `_source_file`, `_file_sha256`, `_record_index`, `_batch_id`, `_ingested_at` |
+| bronze | `musicbrainz_artists` | artista consultado | `status`, `mbid`, `match_score`, `genres` (nombre y votos) + documento crudo |
+| bronze | `_ingestion_log`, `_quarantine` | archivo / registro | Auditoría y errores con causa |
+
+Esquemas exactos: `src/lakehouse/governance/contracts.py` (única definición).
 | silver | `plays` | reproducción de música | Tipado, dedup, hora local, familia de plataforma, sesión, `is_skip` |
 | silver | `episodes` | reproducción de podcast | |
 | silver | `artists` | artista | Género principal y lista; `null` si no hubo match confiable |

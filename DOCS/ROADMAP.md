@@ -1,6 +1,6 @@
 # Roadmap
 
-**Última actualización:** 2026-11-22 (F1 cerrada).
+**Última actualización:** 2026-11-23 (F2 cerrada).
 **Entrega:** lunes 30 de noviembre de 2026 (clase 4 pm; Blackboard 11:59 pm).
 
 Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los commits. Lo que no se puede olvidar
@@ -8,9 +8,10 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
 
 ## Retomar aquí
 
-- 2026-11-22: F1 cerrada (smoke OK en Docker; 18 pruebas en verde dentro del contenedor, incluida la de Spark).
-  **Siguiente: F2 (ingesta).** Arrancar leyendo `CLAUDE.md`, `DOCS/NO_OLVIDAR.md`, `DOCS/DATOS_FUENTE.md` y la
-  sección F2 de abajo.
+- 2026-11-23: F2 cerrada (Bronce 15,743 / 0 cuarentena, idempotente; géneros para 1,098 de 1,301 artistas).
+  **Siguiente: F3 (transformación).** Arrancar leyendo `CLAUDE.md`, `DOCS/NO_OLVIDAR.md`, `DOCS/DATOS_FUENTE.md`
+  (§1.3 reglas de Plata, H-003) y la sección F3 de abajo. Las tablas de Bronce y su esquema están en
+  `governance/contracts.py`.
 
 ## Protocolo de cada fase
 
@@ -29,7 +30,7 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
 |---|---|---|---|---|---|
 | F0 | Base: limpieza del repo, CLAUDE.md, docs, roadmap | Gabriel | dom 22 | Hecha | n/a |
 | F1 | Infraestructura: uv, compose, MinIO, imagen Spark+Delta, smoke | Gabriel | lun 23 | Hecha (dom 22) | `01_GABRIEL_ARQUITECTO.md` (borrador) |
-| F2 | Ingesta: landing, Bronce, MusicBrainz, sintéticos | Ricardo | lun 23 a mar 24 | Pendiente | `02_RICARDO_INGESTA.md` |
+| F2 | Ingesta: landing, Bronce, MusicBrainz, sintéticos | Ricardo | lun 23 a mar 24 | Hecha (lun 23) | `02_RICARDO_INGESTA.md` |
 | F3 | Transformación: Plata y Oro | Juan Pablo | mar 24 a mié 25 | Pendiente | `03_JUAN_PABLO_TRANSFORMACION.md` |
 | F4 | Gobernanza: contratos, calidad, catálogo, linaje, seguridad | Victor | mié 25 | Pendiente | `04_VICTOR_GOBERNANZA.md` |
 | F5 | Orquestación, CI/CD, monitoreo y MLflow | Nora | jue 26 | Pendiente | `07_NORA_DEVOPS.md` |
@@ -72,15 +73,19 @@ Holgura: el domingo 29 queda libre de código. Si una fase se atrasa se recorta 
 
 ## F2. Ingesta (Ricardo, lun 23 a mar 24)
 
-- [ ] Carga a landing: sube los JSON de `DATOS_SPOTIFY/` a `landing/spotify/<fecha>/` con su SHA-256.
-- [ ] Bronce: JSON a Delta con esquema explícito, metadatos de ingesta, `ip_addr` seudonimizada (D8).
-- [ ] Idempotencia por hash con `_ingestion_log` (D15); registros malformados a `_quarantine` (D16).
-- [ ] MusicBrainz: cliente con User-Agent genérico, 1 req/s, reintentos con espera, caché en landing (D9).
-- [ ] Generador de datos sintéticos con el esquema exacto (D14); CLI con `uv run`.
-- [ ] Pruebas: parser, hash, idempotencia (re-correr no duplica), cuarentena, generador, cliente MusicBrainz
-      con respuestas grabadas (sin red).
-- [ ] Gabriel corre la ingesta real (incluye la corrida única de MusicBrainz, ~25 min).
-- [ ] `MDS_DE_ESTUDIO/02_RICARDO_INGESTA.md`.
+- [x] Carga a landing: sube los JSON de `DATOS_SPOTIFY/` a `landing/spotify/<fecha>/` con su SHA-256.
+- [x] Bronce: JSON a Delta con esquema explícito, metadatos de ingesta, `ip_addr` seudonimizada (D8).
+- [x] Idempotencia por hash con `_ingestion_log` (D15, D20); registros malformados a `_quarantine` (D16).
+- [x] MusicBrainz: cliente con User-Agent genérico, 1 req/s, reintentos con espera, caché en landing (D9).
+- [x] Generador de datos sintéticos con el esquema exacto (D14); CLI `python -m lakehouse.ingestion synthetic`.
+- [x] Contratos de Bronce en `governance/contracts.py` (F4 los extiende a Plata y Oro).
+- [x] Pruebas: parser, hash, idempotencia (re-correr no duplica), cuarentena, generador, cliente MusicBrainz
+      con respuestas grabadas (sin red). Local: 63 en verde; validación local de los reales: 15,743 / 0.
+- [x] Gabriel corrió la ingesta real (2026-11-23): `pytest` 66 en verde en el contenedor; Bronce 15,743 filas,
+      0 en cuarentena, bitácora 2; segunda corrida `ya ingeridos=2` con los mismos totales. MusicBrainz: 1,301
+      artistas, 1,098 con match (84%), 5 errores tras reintentos (se piden al re-correr `genres`); ~55 min por los
+      503 frecuentes de la API.
+- [x] `MDS_DE_ESTUDIO/02_RICARDO_INGESTA.md`.
 - **Listo cuando:** filas en Bronce = 15,743 (filas de los JSON) con 0 en cuarentena, y re-correr no cambia conteos.
 
 ## F3. Transformación (Juan Pablo, mar 24 a mié 25)
@@ -95,7 +100,8 @@ Holgura: el domingo 29 queda libre de código. Si una fase se atrasa se recorta 
 
 ## F4. Gobernanza y seguridad (Victor, mié 25)
 
-- [ ] Contratos de esquema por tabla (fuente única: YAML) con descripción de columnas, dueño y clasificación (PII).
+- [ ] Contratos de esquema por tabla (fuente única: `governance/contracts.py`, ya con Bronce desde F2) con
+      descripción de columnas, dueño y clasificación (PII); falta Plata y Oro.
 - [ ] Checks de calidad por capa (no nulos, únicos, valores aceptados, rangos, frescura, reconciliación).
 - [ ] Generadores de `ENTREGABLES/03_calidad_y_linaje/`: `CATALOGO.md`, linaje (Mermaid, tabla a tabla y
       columnas clave) y `CALIDAD_Y_LINAJE.md` con los resultados de la última corrida (solo conteos).

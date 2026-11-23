@@ -12,7 +12,7 @@ historial extendido de reproducciones de Spotify:
 - **BI:** tablero en Apache Superset sobre la capa Oro.
 - **Dependencias:** uv (Python 3.11) en local; Docker Compose para los servicios.
 
-> **Estado (2026-11-22):** en construcción. Infraestructura lista (F1); sigue la ingesta (F2). Avance en
+> **Estado (2026-11-22):** en construcción. Infraestructura (F1) e ingesta (F2) listas; sigue la transformación (F3). Avance en
 > [DOCS/ROADMAP.md](DOCS/ROADMAP.md). Entrega: 30 de noviembre de 2026.
 
 ## Estructura
@@ -30,13 +30,16 @@ historial extendido de reproducciones de Spotify:
 ## Cómo replicar
 
 Requisitos: [Docker Desktop](https://www.docker.com/products/docker-desktop/) (prendido) y
-[uv](https://docs.astral.sh/uv/). Los datos reales no se publican (privacidad); en F2 se agrega un generador de
-datos sintéticos con el mismo esquema para correr todo el pipeline.
+[uv](https://docs.astral.sh/uv/). Los datos reales no se publican (privacidad); el pipeline corre igual con
+datos sintéticos del mismo esquema (paso 2).
 
 ### 1. Infraestructura (MinIO + Spark + Delta)
 
 ```powershell
 Copy-Item .env.example .env          # luego cambia la contraseña de MinIO en .env
+# Sal para seudonimizar IPs (se agrega a .env sin imprimirse):
+$b = New-Object byte[] 24; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+Add-Content .env ("IP_HASH_SALT=" + (-join ($b | ForEach-Object { $_.ToString('x2') })))
 docker compose up -d --build         # la primera vez tarda (baja Java, PySpark y los JARs)
 docker compose exec lakehouse python -m lakehouse.common.smoke
 ```
@@ -44,7 +47,20 @@ docker compose exec lakehouse python -m lakehouse.common.smoke
 El smoke debe terminar con `Smoke OK`. Consola de MinIO: <http://localhost:9001> (usuario y contraseña del `.env`),
 con los buckets `landing`, `bronze`, `silver` y `gold`.
 
-### 2. Pruebas
+### 2. Ingesta (landing > Bronce + géneros)
+
+Sin datos reales, con sintéticos:
+
+```powershell
+docker compose exec lakehouse python -m lakehouse.ingestion synthetic --out /tmp/sinteticos --rows 5000
+docker compose exec lakehouse python -m lakehouse.ingestion all --source-dir /tmp/sinteticos --genres synthetic
+```
+
+Con el historial real (carpeta `SPOTIFY_DATA_DIR` del `.env`): `... ingestion all` y luego `... ingestion genres`
+(consulta MusicBrainz una sola vez, ~1 hora). Re-correr no duplica nada. No mezcles sintéticos y reales en el
+mismo MinIO: para cambiar, `docker compose down -v`.
+
+### 3. Pruebas
 
 ```powershell
 uv sync                              # instala Python 3.11 y las dependencias del uv.lock

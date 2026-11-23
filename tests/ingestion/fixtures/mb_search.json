@@ -1,0 +1,31 @@
+{
+  "created": "2026-11-22T18:00:00.000Z",
+  "count": 3,
+  "offset": 0,
+  "artists": [
+    {
+      "id": "11111111-2222-3333-4444-555555555555",
+      "type": "Group",
+      "score": 100,
+      "name": "Los Ejémplos",
+      "sort-name": "Ejémplos, Los",
+      "country": "MX",
+      "aliases": [{"sort-name": "The Examples", "name": "The Examples", "locale": "en", "type": "Artist name", "primary": null}],
+      "tags": [{"count": 1, "name": "rock"}]
+    },
+    {
+      "id": "66666666-7777-8888-9999-000000000000",
+      "type": "Person",
+      "score": 72,
+      "name": "Los Ejemplos Tributo",
+      "sort-name": "Ejemplos Tributo, Los"
+    },
+    {
+      "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "type": "Group",
+      "score": 95,
+      "name": "Otros Ejemplos",
+      "sort-name": "Otros Ejemplos"
+    }
+  ]
+}

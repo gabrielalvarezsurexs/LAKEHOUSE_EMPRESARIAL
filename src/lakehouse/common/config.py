@@ -13,6 +13,8 @@ from lakehouse.common.errors import ConfigError
 
 # Un bucket por capa (D3). infra/minio/init.sh crea los mismos; el smoke verifica que coincidan.
 LAYERS: tuple[str, ...] = ("landing", "bronze", "silver", "gold")
+MIN_SALT_LENGTH = 16
+DEFAULT_MUSICBRAINZ_USER_AGENT = "lakehouse-escolar/0.1 (proyecto academico de datos)"
 
 
 @dataclass(frozen=True)
@@ -24,6 +26,20 @@ class Settings:
     s3_secret_key: str = field(repr=False)
     spark_master: str = "local[*]"
     spark_driver_memory: str = "4g"
+    # Sal para seudonimizar ip_addr (D8). Opcional aqui; la ingesta exige que exista y sea larga.
+    ip_hash_salt: str = field(default="", repr=False)
+    spotify_source_dir: str = "/datos_spotify"
+    # Generico a proposito: sin nombres, correos ni URLs personales (regla de privacidad).
+    musicbrainz_user_agent: str = DEFAULT_MUSICBRAINZ_USER_AGENT
+
+    def require_ip_salt(self) -> str:
+        """Devuelve la sal de IP o falla si no hay una suficientemente larga."""
+        if len(self.ip_hash_salt) < MIN_SALT_LENGTH:
+            raise ConfigError(
+                f"IP_HASH_SALT debe tener al menos {MIN_SALT_LENGTH} caracteres. Agregala a tu .env "
+                "(plantilla: .env.example)."
+            )
+        return self.ip_hash_salt
 
     @property
     def s3_ssl(self) -> bool:
@@ -62,6 +78,10 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         s3_secret_key=_require(env, "S3_SECRET_KEY"),
         spark_master=env.get("SPARK_MASTER", "").strip() or "local[*]",
         spark_driver_memory=env.get("SPARK_DRIVER_MEMORY", "").strip() or "4g",
+        ip_hash_salt=env.get("IP_HASH_SALT", "").strip(),
+        spotify_source_dir=env.get("SPOTIFY_SOURCE_DIR", "").strip() or "/datos_spotify",
+        musicbrainz_user_agent=env.get("MUSICBRAINZ_USER_AGENT", "").strip()
+        or DEFAULT_MUSICBRAINZ_USER_AGENT,
     )
 
 
