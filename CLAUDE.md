@@ -57,6 +57,14 @@ con Spark), con gobernanza, un modelo de ML que lee de Oro y un tablero de BI. I
     accesos, y escribe `CALIDAD_Y_LINAJE.md`; falla si algo bloqueante no pasa. `... access` corre solo la prueba
     de usuarios.
 - Credenciales de MinIO: cada CLI usa `get_settings().for_role("<rol>")` (D17); nunca el root.
+- Orquestación (F5), dentro del contenedor:
+  - **Arranque:** Dagster se levanta con el stack en `localhost:3300` (D24). La primera vez, los sensores corren
+    el pipeline completo solos.
+  - **Comandos:** `python -m lakehouse.orchestration status` (corridas y checks), `... health` (salud y alertas) y
+    `... run --job <lakehouse_full|ingest_landing|pipeline_from_landing|health_only>`. `run` es lo que corre CI y
+    falla si un paso o un check bloqueante falla.
+  - **Mantenimiento:** `python -m lakehouse.ingestion bronze --compact` compacta Bronce aunque no haya archivos
+    nuevos.
 - Los comandos exactos de cada pieza se agregan aquí al cerrar su fase.
 
 ## Seguridad y privacidad

@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from lakehouse.ingestion.bronze import BronzeTables, ingest_bronze, table_counts
+from lakehouse.ingestion.bronze import BronzeTables, compact_tables, ingest_bronze, table_counts
 from lakehouse.ingestion.musicbrainz import enrich_genres
 from lakehouse.ingestion.synthetic import SyntheticSource, generate_streams
 
@@ -31,6 +31,8 @@ def test_bronze_counts_quarantine_and_idempotency(spark, store, settings, tmp_pa
     expected = {"spotify_streams": 400, "_quarantine": 2, "_ingestion_log": 4}
     assert (first.rows_loaded, first.rows_quarantined) == (400, 2)
     assert table_counts(spark, tables) == expected
+    # Compactado al final (H-009): un archivo por tabla, sin perder filas.
+    assert set(compact_tables(spark, tables).values()) <= {0, 1}
 
     second = ingest_bronze(spark, store, settings, tables)
     assert (len(second.files), len(second.skipped)) == (0, 4)

@@ -199,7 +199,26 @@ def ingest_bronze(
         result.rows_loaded,
         result.rows_quarantined,
     )
+    if result.files:
+        compact_tables(spark, tables)
     return result
+
+
+def compact_tables(spark: SparkSession, tables: BronzeTables) -> dict[str, int]:
+    """OPTIMIZE (bin-packing) de las tablas de Bronce; regresa cuantos archivos quedan en cada una.
+
+    Cada archivo de landing deja archivos chicos en las tres tablas (H-009). Compactar no cambia datos: Delta
+    lo registra como OPTIMIZE (dataChange=false); la frescura y las capas siguientes no lo ven como cambio.
+    """
+    from delta.tables import DeltaTable
+
+    files = {}
+    for contract in (BRONZE_SPOTIFY_STREAMS, BRONZE_QUARANTINE, BRONZE_INGESTION_LOG):
+        table = DeltaTable.forPath(spark, tables.uri(contract))
+        table.optimize().executeCompaction()
+        files[contract.name] = table.detail().first()["numFiles"]
+    log.info("Bronce compactado, archivos por tabla: %s", ", ".join(f"{k}={v}" for k, v in files.items()))
+    return files
 
 
 def table_counts(spark: SparkSession, tables: BronzeTables) -> dict[str, int]:

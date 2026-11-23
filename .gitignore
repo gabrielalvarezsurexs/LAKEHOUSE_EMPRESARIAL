@@ -193,6 +193,9 @@ DATOS_SPOTIFY/
 *.parquet
 *.delta
 _delta_log/
+# Sinteticos generados (README paso 5 y CI): se regeneran, no se versionan
+/sinteticos/
+/ci-data/
 
 # Runtime del stack
 mlruns/

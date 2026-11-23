@@ -62,6 +62,7 @@ flowchart LR
 | D21 | **Plata se recalcula completa** (overwrite) en cada corrida; **`fact_plays` se actualiza con MERGE** por `play_id` (inserta, actualiza si cambió, borra lo que salió de Plata) y OPTIMIZE + Z-ORDER por `date_key` solo si el MERGE cambió algo; dimensiones y marts se reescriben | Dedup y sesiones dependen de filas vecinas (15k filas: segundos); el MERGE demuestra la carga incremental y re-correr escribe 0 filas | Plata incremental (sesiones rotas en los bordes), reescribir Oro completo |
 | D22 | Las tablas de Plata y Oro se **crean desde su contrato** (tipos, NOT NULL, comentario por columna) y se escriben con `mergeSchema` | Delta rechaza nulls en columnas obligatorias y deja agregar columnas, pero no cambiar tipos: evolución de esquema controlada | Esquema inferido del DataFrame |
 | D23 | **El contrato es la fuente de la gobernanza**: privacidad por columna, clasificación, dueño, `sources`, llaves, referencias, valores, rangos y reglas SQL. De él salen el catálogo, el linaje, los checks de calidad (error bloquea, aviso no) y las propiedades y comentarios de cada tabla Delta, que se sincronizan al escribir | Una sola definición: imposible que el catálogo y los checks digan cosas distintas | Great Expectations (otra definición aparte, más piezas), checks escritos a mano por tabla |
+| D24 | **Dagster corre cada paso como un subproceso de su CLI** con el usuario de su rol. Hay un asset por tabla (el grafo sale de los `sources` del contrato). Los checks bloqueantes van **por paso**: corren `governance check --tables` de lo que el paso escribió. Sensores de carpeta de origen y de landing, schedule diario (6:00 CDMX) y de salud (cada 6 h), y alerta de falla en logs. Bronce se compacta (OPTIMIZE) al final de cada ingesta con archivos nuevos | Una SparkSession no cambia de credenciales (D17), así que cada paso es su propio proceso; los roles no se importan entre sí; los checks por capa formaban un ciclo, porque géneros escribe en Bronce después de que Bronce ya pasó sus checks (H-008); cada archivo de landing deja archivos chicos (H-009) | Ops que importan la lógica de cada rol; checks por capa; un solo usuario para Dagster |
 
 ## 2.1 Estructura del repo
 
@@ -110,6 +111,6 @@ Esquemas exactos (tipos, nulos, descripción): `src/lakehouse/governance/contrac
 |---|---|---|---|
 | `minio` | `cgr.dev/chainguard/minio` (digest fijado) | 9000 API, 9001 consola | Gabriel |
 | `minio-init` | `cgr.dev/chainguard/minio-client:latest-dev` (digest fijado) | | Gabriel (buckets), Victor (usuarios y políticas) |
-| `lakehouse` | propia (`infra/app/Dockerfile`): Python 3.11 + Java 17 + PySpark + delta-spark (+ Dagster en F5) | 3000 Dagster (F5), 4040 Spark UI | Gabriel (imagen), Nora (Dagster) |
-| `mlflow` | `ghcr.io/mlflow/mlflow` (tag fijado) | 5000 | Nora |
+| `lakehouse` | propia (`infra/app/Dockerfile`): Python 3.11 + Java 17 + PySpark + delta-spark + Dagster (`dagster dev`) | 3300 Dagster (`DAGSTER_PORT`; adentro 3000, H-007), 4040 Spark UI | Gabriel (imagen), Nora (Dagster) |
+| `mlflow` | `ghcr.io/mlflow/mlflow:v3.18.0` (digest fijado), SQLite + artefactos en volumen | 5000 | Nora |
 | `superset` | propia: `apache/superset` + `duckdb-engine` | 8088 | Emilio |

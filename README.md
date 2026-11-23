@@ -12,8 +12,8 @@ historial extendido de reproducciones de Spotify:
 - **BI:** tablero en Apache Superset sobre la capa Oro.
 - **Dependencias:** uv (Python 3.11) en local; Docker Compose para los servicios.
 
-> **Estado (2026-11-23):** en construcción. Infraestructura (F1), ingesta (F2), transformación (F3) y gobernanza
-> (F4) listas; sigue orquestación (F5). Avance en
+> **Estado (2026-11-23):** en construcción. Infraestructura (F1), ingesta (F2), transformación (F3), gobernanza
+> (F4) y orquestación con CI (F5) listas; sigue ML (F6). Avance en
 > [DOCS/ROADMAP.md](DOCS/ROADMAP.md). Entrega: 30 de noviembre de 2026.
 
 ## Estructura
@@ -86,7 +86,33 @@ Corre los checks de calidad sobre Bronce, Plata y Oro, prueba los permisos de ca
 (solo conteos). El catálogo y el linaje se generan desde los contratos con
 `uv run python -m lakehouse.governance docs`.
 
-### 5. Pruebas
+### 5. Orquestación (Dagster: el pipeline corre solo)
+
+Dagster arranca con el stack en <http://localhost:3300> (`DAGSTER_PORT` en `.env`). Sus sensores vigilan la
+carpeta `SPOTIFY_DATA_DIR` y el bucket `landing`, así que **la primera vez corre los pasos 2 a 4 sin que hagas
+nada**: Bronce, géneros, Plata, Oro, checks por paso (si uno falla, lo siguiente no corre), reporte y salud. Luego
+repite el pipeline todos los días a las 6:00 y revisa la salud cada 6 horas.
+
+Para replicar sin datos reales, antes del paso 1 genera los sintéticos y apunta el `.env` a ellos (igual que CI):
+
+```powershell
+uv run python -m lakehouse.ingestion synthetic --out sinteticos --rows 5000
+# en .env: SPOTIFY_DATA_DIR=./sinteticos y GENRES_SOURCE=synthetic (no consulta MusicBrainz)
+```
+
+Comandos útiles:
+
+```powershell
+docker compose exec lakehouse python -m lakehouse.orchestration status    # últimas corridas y checks
+docker compose exec lakehouse python -m lakehouse.orchestration health    # tamaños, versiones y alertas
+docker compose exec lakehouse python -m lakehouse.orchestration run --job lakehouse_full  # todo, a mano
+```
+
+`status` debe mostrar las corridas en `SUCCESS` y `Checks: SUCCEEDED=20`. En la UI, **Lineage** muestra el
+grafo (sale de los contratos) y **Automation** los sensores y schedules. MLflow queda en <http://localhost:5000>.
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) hace lo mismo con sintéticos en cada push.
+
+### 6. Pruebas
 
 ```powershell
 uv sync                              # instala Python 3.11 y las dependencias del uv.lock

@@ -120,6 +120,16 @@ Windows 11, 31 GB RAM, 24 hilos, Docker 29.5 + Compose 5.1 (el daemon se prende 
   landing (archivo nuevo dispara la ingesta): cubre "sin ejecuciones manuales".
 - La UI muestra el grafo de linaje y el historial de checks: evidencia para Gobernanza y para el video.
 - `DAGSTER_HOME` con almacenamiento local en un volumen (gitignored).
+- **Lo que usamos (F5):**
+  - **Versión:** Dagster 1.13.31, con `dagster dev` dentro del contenedor `lakehouse`.
+  - **Ejecución:** `in_process_executor`, y `infra/dagster/dagster.yaml` deja 1 corrida a la vez, porque dos
+    Spark en paralelo no caben en la RAM de la laptop.
+  - **Checks:** un `multi_asset` por paso, con `check_specs` con `blocking=True`.
+  - **Estado de los checks:** `status` lo lee con `instance.event_log_storage.get_latest_asset_check_execution_by_key`.
+- **MLflow 3.x:** sin `--allowed-hosts`, el servidor rechaza las peticiones que llegan con otro `Host` (por ejemplo
+  `mlflow:5000` desde otro contenedor). Por eso el compose lista `mlflow`, `localhost` y `127.0.0.1`.
+- **Delta OPTIMIZE** (`executeCompaction`) es un commit con `dataChange=false`: no cuenta como cambio de datos
+  para la frescura ni para quien lea la tabla. Los archivos viejos siguen en MinIO hasta un VACUUM.
 
 ## DuckDB para BI
 

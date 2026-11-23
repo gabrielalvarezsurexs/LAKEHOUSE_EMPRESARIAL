@@ -90,6 +90,12 @@ la sección "Retomar aquí" de [ROADMAP.md](ROADMAP.md). Si algo de aquí cambia
   La herramienta de escritura convierte `\u` en el carácter, así que hay que revisar con
   `rg "[^\x00-\x7F]" src`.
 - **ML y BI leen solo de Oro.** Los módulos de cada rol se comunican por tablas, no por imports.
+- **Dagster (D24):**
+  - **Dónde:** <http://localhost:3300>. No va en el 3000, que en la laptop de Gabriel ocupa otra app (H-007).
+  - **Corre solo:** la primera vez que se levanta el stack, los sensores corren el pipeline completo, y el
+    schedule lo repite diario a las 6:00. Cada corrida reescribe `CALIDAD_Y_LINAJE.md`, así que antes de cada
+    commit hay que revisar su diff: solo debe traer conteos.
+  - **Datos reales:** el sensor de landing no se demuestra subiendo un sintético, porque mezclaría datos.
 - "Sin ejecuciones manuales" (rúbrica): schedule + sensor en Dagster. "README para replicar" (rúbrica): datos
   sintéticos + prueba desde un clon limpio en F8.
 

@@ -36,14 +36,16 @@ def _landing(args: argparse.Namespace) -> None:
 def _with_spark(args: argparse.Namespace, steps: list[str]) -> None:
     from lakehouse.common.spark import build_spark
     from lakehouse.common.storage import S3ObjectStore
-    from lakehouse.ingestion.bronze import BronzeTables, ingest_bronze, table_counts
+    from lakehouse.ingestion.bronze import BronzeTables, compact_tables, ingest_bronze, table_counts
 
     settings = get_settings().for_role(ROLE)
     store, tables = S3ObjectStore(settings), BronzeTables.from_settings(settings)
     spark = build_spark("ingestion", settings)
     try:
         if "bronze" in steps:
-            ingest_bronze(spark, store, settings, tables, force=args.force)
+            result = ingest_bronze(spark, store, settings, tables, force=args.force)
+            if getattr(args, "compact", False) and not result.files:
+                compact_tables(spark, tables)  # con archivos nuevos ingest_bronze ya compacto
             counts = table_counts(spark, tables)
             log.info("Bronce total: %s", ", ".join(f"{k}={v}" for k, v in counts.items()))
         if "genres" in steps and args.genres != "skip":
@@ -73,6 +75,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     bronze = sub.add_parser("bronze", help="Landing a Bronce (Delta), idempotente")
     bronze.add_argument("--force", action="store_true", help="Reprocesa aunque ya este en la bitacora")
+    bronze.add_argument(
+        "--compact", action="store_true", help="Compacta Bronce aunque no haya archivos nuevos (OPTIMIZE)"
+    )
 
     genres = sub.add_parser("genres", help="Generos por artista (MusicBrainz o sinteticos)")
     genres.add_argument(
