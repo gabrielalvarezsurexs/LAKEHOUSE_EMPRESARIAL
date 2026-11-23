@@ -12,13 +12,49 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
   - 325 checks sobre 17 tablas, 0 fallas.
   - 5 usuarios de MinIO con mínimo privilegio, verificados en vivo (41 de 41).
   - Catálogo, linaje y reporte generados en `ENTREGABLES/03_calidad_y_linaje/`.
-- **Siguiente: F5 (orquestación, CI, MLflow).** Arrancar leyendo `CLAUDE.md`, `DOCS/NO_OLVIDAR.md`,
-  `DOCS/ARQUITECTURA.md` (D6, D7, D17, D23) y la sección F5 de abajo. Para F5:
-  - **Assets de Dagster:** sus dependencias salen de `contract.sources` (el mismo grafo de `LINAJE.md`).
-  - **Asset checks:** envuelven `governance.quality.table_checks`.
-  - **Pasos:** cada uno corre con el usuario de su rol (`settings.for_role(...)`). Lo más simple es un proceso
-    por paso (los CLIs), porque una SparkSession no cambia de credenciales.
-  - **CI:** debe generar las `MINIO_SECRET_*` antes de `docker compose up`.
+- 2026-11-23: **F5 implementada, sin commit, esperando la corrida pesada de Gabriel.**
+  - **Código:**
+    - `src/lakehouse/orchestration/`: `steps`, `assets`, `checks`, `automation`, `health`, `definitions` y
+      `__main__` (`run`, `health`, `status`).
+    - Cada paso es un subproceso de su CLI con su usuario `svc-*`.
+    - Checks bloqueantes por paso, no por capa: géneros escribe en Bronce después de los checks de Bronce y por
+      capa salía un ciclo.
+    - Sensores de carpeta y de landing, schedule diario a las 6:00, salud cada 6 h y alerta de fallas en logs.
+  - **Cambios fuera de orquestación:**
+    - `governance check` acepta `--tables`, `--cross-layer` y `--json`;
+    - `GENRES_SOURCE` en `config`;
+    - `S3ObjectStore.usage`.
+  - **Infra:**
+    - `infra/dagster/dagster.yaml`: 1 corrida a la vez, monitoreo de corridas y sin telemetría;
+    - Dockerfile con CMD `dagster dev`;
+    - compose: Dagster en **localhost:3300** (el 3000 lo ocupa `ammia-grafana` de Gabriel; `DAGSTER_PORT`), MLflow
+      3.18 por digest en el 5000;
+    - `.github/workflows/ci.yml`.
+  - **Local:** ruff limpio, 222 en verde.
+  - **Corrida pesada de Gabriel (2026-11-23), hecha:**
+    - `pytest` en el contenedor: 234 en verde, 3 saltadas (archivos que el contenedor no monta). MLflow `/health`: OK.
+    - `pipeline_from_landing` SUCCESS en 5.6 min, disparado solo por los sensores; 19 de 20 checks en verde.
+    - Prueba del sensor OK: el `touch` dio un `ingest_landing` más y ningún `pipeline_from_landing` nuevo.
+    - `linaje_dagster.png` guardado: SVG exportado de Dagster, con flechas aclaradas, fondo oscuro y recorte; el
+      script quedó en el scratchpad, no en el repo.
+    - Se apagaron los logs INFO de `alembic` en `common/log.py` (ensuciaban `orchestration status`).
+    - `health`: 17 de 17 tablas, 71,923 filas; landing 1303 objetos (15.9 MiB), bronze 303 (7.6), silver 80 (7.5),
+      gold 242 (11.1).
+  - **Falta, en orden:**
+    1. **Pendiente abierto:** el check `sin_alertas` falla (solo WARN, la corrida no cae) por
+       `bronze.spotify_streams: 48 archivos chicos: conviene OPTIMIZE`. Propuesta: compactar Bronce al final de
+       `ingestion bronze` solo si se agregaron archivos (`DeltaTable.optimize().executeCompaction()`, idempotente)
+       y repetir `health` hasta que salga sin alertas. Alternativa: un asset de mantenimiento en Dagster.
+       Decidirlo con Gabriel antes de tocar el código de ingesta.
+    2. Revisar los logs. Luego la guía `MDS_DE_ESTUDIO/07_NORA_DEVOPS.md` y los docs:
+       - ARQUITECTURA: D24 (pasos como subprocesos, checks por paso, sensores) y la tabla de servicios;
+       - README: Dagster en 3300, `orchestration run/status`, `GENRES_SOURCE`;
+       - CLAUDE.md: comandos de F5;
+       - RUBRICA y NO_OLVIDAR: el reporte se reescribe en cada corrida de Dagster;
+       - HALLAZGOS: H-007 (puerto 3000 ocupado), H-008 (ciclo de checks por capa) y H-009 (archivos chicos en
+         Bronce);
+       - `ENTREGABLES/02` y `ENTREGABLES/README.md` (incluye `linaje_dagster.png`).
+    3. Commit, push y revisar que CI pase en verde.
 
 ## Protocolo de cada fase
 

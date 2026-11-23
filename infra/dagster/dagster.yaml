@@ -1,0 +1,17 @@
+# Responsable: Nora Valentina Frias Alpizar (Ingeniera DevOps / MLOps)
+# Instancia de Dagster (F5). Se monta en $DAGSTER_HOME; el historial (SQLite) vive en el volumen dagster-home.
+
+# Una corrida a la vez: cada paso levanta su propio Spark y todas escriben las mismas tablas Delta.
+# Lo que disparen el sensor o el schedule mientras tanto se queda en cola.
+concurrency:
+  runs:
+    max_concurrent_runs: 1
+
+# Monitoreo de corridas: el daemon cancela una corrida colgada (la primera de MusicBrainz tarda ~1 h).
+run_monitoring:
+  enabled: true
+  max_runtime_seconds: 10800
+
+# Datos de un integrante: nada sale a servicios de terceros.
+telemetry:
+  enabled: false

@@ -82,3 +82,30 @@ def test_report_renders_counts_only():
     assert "`svc-bi`" in text and "plata = oro" in text and "### `silver.plays` (10 filas; 1 de 2 OK)" in text
     assert "### `gold.fact_plays` (no existe" in text
     assert EM_DASH not in text
+
+
+def test_quality_run_to_dict_is_json_ready():
+    import json
+
+    run = QualityRun(
+        [CheckResult("gold.fact_plays", "unicos", "unica por (play_id)", ERROR, False, 2)],
+        {"gold.fact_plays": 9},
+    )
+    data = json.loads(json.dumps(run.to_dict()))
+    assert data["row_counts"] == {"gold.fact_plays": 9}
+    assert data["results"][0]["failed"] == 2 and data["results"][0]["ok"] is False
+
+
+def test_check_cli_selects_tables_by_name():
+    from lakehouse.common.errors import ConfigError
+    from lakehouse.governance.__main__ import build_parser, selected_contracts
+
+    picked = selected_contracts("bronze.spotify_streams, gold.fact_plays")
+    assert [t.qualified_name for t in picked] == ["bronze.spotify_streams", "gold.fact_plays"]
+    for bad in ("landing.spotify_streams_source", "gold.no_existe", " , "):
+        with pytest.raises(ConfigError):
+            selected_contracts(bad)
+    args = build_parser().parse_args(
+        ["check", "--tables", "gold.fact_plays", "--cross-layer", "--json", "x.json"]
+    )
+    assert args.cross_layer and args.json == "x.json"

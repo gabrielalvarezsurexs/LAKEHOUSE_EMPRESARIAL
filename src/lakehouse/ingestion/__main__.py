@@ -50,7 +50,9 @@ def _with_spark(args: argparse.Namespace, steps: list[str]) -> None:
             from lakehouse.ingestion.musicbrainz import enrich_genres
             from lakehouse.ingestion.synthetic import SyntheticSource
 
-            source = SyntheticSource() if args.genres == "synthetic" else None
+            # Sin --genres manda GENRES_SOURCE del .env (asi la corrida de Dagster usa sinteticos en CI).
+            genres = args.genres or settings.genres_source
+            source = SyntheticSource() if genres == "synthetic" else None
             enrich_genres(spark, store, settings, source, tables, limit=args.limit)
     finally:
         spark.stop()
@@ -73,7 +75,9 @@ def build_parser() -> argparse.ArgumentParser:
     bronze.add_argument("--force", action="store_true", help="Reprocesa aunque ya este en la bitacora")
 
     genres = sub.add_parser("genres", help="Generos por artista (MusicBrainz o sinteticos)")
-    genres.add_argument("--genres", choices=("api", "synthetic"), default="api", help="Fuente de generos")
+    genres.add_argument(
+        "--genres", choices=("api", "synthetic"), help="Fuente de generos (default: GENRES_SOURCE o api)"
+    )
     genres.add_argument("--limit", type=int, help="Maximo de artistas nuevos a consultar en esta corrida")
 
     full = sub.add_parser("all", help="landing + bronze + genres")

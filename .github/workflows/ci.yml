@@ -1,0 +1,94 @@
+# Responsable: Nora Valentina Frias Alpizar (Ingeniera DevOps / MLOps)
+# CI (F5): lint y pruebas sin Docker; luego el stack completo con datos sinteticos (D14): MinIO con sus
+# usuarios, el pipeline entero por Dagster (pasos, checks por capa, reporte y salud) y las pruebas con Spark.
+# Nunca usa datos reales: el repo es publico y CI solo ve los sinteticos que genera.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint y pruebas (sin Docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - name: Dependencias (mismo uv.lock que el contenedor)
+        run: uv sync --frozen
+      - name: Ruff
+        run: uv run ruff check .
+      - name: Pytest
+        run: uv run pytest
+
+  pipeline:
+    name: Pipeline completo con sinteticos
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+
+      - name: Datos sinteticos
+        run: uv run python -m lakehouse.ingestion synthetic --out ci-data --rows 3000 --files 2
+
+      - name: .env de CI (contrasenas aleatorias, nunca se imprimen)
+        run: |
+          rnd() { openssl rand -hex 24; }
+          {
+            echo "MINIO_ROOT_USER=ci-admin"
+            echo "MINIO_ROOT_PASSWORD=$(rnd)"
+            for role in INGESTION TRANSFORMATION GOVERNANCE ML BI; do
+              echo "MINIO_SECRET_${role}=$(rnd)"
+            done
+            echo "IP_HASH_SALT=$(rnd)"
+            echo "SPOTIFY_DATA_DIR=./ci-data"
+            echo "GENRES_SOURCE=synthetic"
+            echo "SPARK_DRIVER_MEMORY=2g"
+          } > .env
+
+      - name: Construir la imagen
+        run: docker compose build lakehouse
+
+      - name: MinIO, buckets, usuarios y politicas
+        run: |
+          docker compose up -d minio
+          docker compose run --rm minio-init
+
+      - name: Smoke (buckets y Delta con los usuarios de servicio)
+        run: docker compose run --rm --no-deps lakehouse python -m lakehouse.common.smoke
+
+      - name: Pipeline completo por Dagster (falla si un paso o un check bloqueante falla)
+        run: docker compose run --rm --no-deps lakehouse python -m lakehouse.orchestration run --job lakehouse_full
+
+      - name: Pruebas con Spark
+        run: docker compose run --rm --no-deps lakehouse pytest
+
+      - name: MLflow arriba
+        run: docker compose up -d --wait mlflow
+
+      - name: Logs si algo fallo
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+
+      - name: Apagar y borrar volumenes
+        if: always()
+        run: docker compose down -v

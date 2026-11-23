@@ -10,6 +10,9 @@ dependencies = [
     "pyspark>=3.5.3,<3.6",
     "delta-spark>=3.3,<3.4",
     "boto3>=1.35,<2",
+    # Orquestacion (F5, D6): assets, asset checks, schedules y sensores.
+    "dagster>=1.13.31,<1.14",
+    "dagster-webserver>=1.13.31,<1.14",
 ]
 
 [dependency-groups]

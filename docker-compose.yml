@@ -1,6 +1,7 @@
 # Responsable: Gabriel Alvarez Mendoza (Arquitecto de Datos / Lider)
 # Stack local del lakehouse (D1). Uso: copia .env.example a .env y corre `docker compose up -d --build`.
-# F5 agrega Dagster y MLflow; F7 agrega Superset. Necesita en .env las MINIO_SECRET_* (README, paso 1).
+# F5: Dagster corre en el contenedor lakehouse (localhost:3300) y MLflow aparte (5000); F7 agrega Superset.
+# Necesita en .env las MINIO_SECRET_* (README, paso 1).
 
 name: lakehouse
 
@@ -68,8 +69,14 @@ services:
       MUSICBRAINZ_USER_AGENT: ${MUSICBRAINZ_USER_AGENT:-}
       # Gobernanza (F4): el reporte de calidad se escribe directo en el repo (solo conteos).
       REPORT_DIR: /app/reports
+      # Orquestacion (F5): generos de la API real (default) o sinteticos (CI y replica sin datos reales).
+      GENRES_SOURCE: ${GENRES_SOURCE:-api}
+      # ML (F6): servidor de experimentos.
+      MLFLOW_TRACKING_URI: http://mlflow:5000
     ports:
-      - "4040:4040"  # Spark UI (mientras corre un job)
+      # Dagster (UI, linaje, corridas) en http://localhost:3300; el 3000 suele estar ocupado (Grafana, etc.).
+      - "${DAGSTER_PORT:-3300}:3000"
+      - "4040:4040"  # Spark UI (mientras corre un paso)
     volumes:
       # Codigo montado: los cambios se ven sin reconstruir la imagen (solo si cambia uv.lock).
       - ./src:/app/src:ro
@@ -79,10 +86,47 @@ services:
       - ${SPOTIFY_DATA_DIR:-./DATOS_SPOTIFY}:/datos_spotify:ro
       # Unica carpeta del repo con escritura: CALIDAD_Y_LINAJE.md (F4).
       - ./ENTREGABLES/03_calidad_y_linaje:/app/reports
+      # Historial de Dagster (corridas, cursores de sensores) y su configuracion (F5).
+      - dagster-home:/opt/dagster/home
+      - ./infra/dagster/dagster.yaml:/opt/dagster/home/dagster.yaml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/server_info"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
     depends_on:
       minio-init:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  mlflow:
+    # Servidor de experimentos para F6 (D12). Imagen oficial fijada por digest (v3.18.0, 2026-11-04).
+    image: ghcr.io/mlflow/mlflow:v3.18.0@sha256:257204c77980b0f3450a26eb6089e487603fcdd4509529eadaf88f90669f5c13
+    # Metadatos en SQLite y artefactos en el volumen; el servidor los sirve por HTTP (--serve-artifacts),
+    # asi el cliente no necesita llaves de MinIO. --allowed-hosts: MLflow 3 rechaza Host desconocidos.
+    command:
+      - mlflow
+      - server
+      - --host=0.0.0.0
+      - --port=5000
+      - --backend-store-uri=sqlite:////mlflow/mlflow.db
+      - --artifacts-destination=/mlflow/artifacts
+      - --serve-artifacts
+      - --allowed-hosts=mlflow,mlflow:5000,localhost,localhost:5000,127.0.0.1,127.0.0.1:5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
 volumes:
   minio-data:
+  dagster-home:
+  mlflow-data:

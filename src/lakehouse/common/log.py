@@ -17,7 +17,8 @@ def get_logger(name: str) -> logging.Logger:
         logging.basicConfig(
             level=level if level in logging.getLevelNamesMapping() else "INFO", format=_FORMAT
         )
-        # py4j es muy ruidoso en INFO y no aporta al pipeline.
-        logging.getLogger("py4j").setLevel(logging.WARNING)
+        # py4j (Spark) y alembic (migraciones de Dagster) son muy ruidosos en INFO y no aportan al pipeline.
+        for noisy in ("py4j", "alembic"):
+            logging.getLogger(noisy).setLevel(logging.WARNING)
         root._lakehouse_configured = True  # type: ignore[attr-defined]
     return logging.getLogger(name)

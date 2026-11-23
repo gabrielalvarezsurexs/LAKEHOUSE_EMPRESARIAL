@@ -1,6 +1,6 @@
 # Calidad y linaje
 
-> Generado por `python -m lakehouse.governance check` el 2026-11-23 14:42 UTC sobre las tablas de MinIO.
+> Generado por `python -m lakehouse.governance check` el 2026-11-23 19:40 UTC sobre las tablas de MinIO.
 > No se edita a mano. Solo conteos: ningún valor de los datos.
 > Catálogo: [CATALOGO.md](CATALOGO.md). Linaje de columnas: [LINAJE.md](LINAJE.md).
 

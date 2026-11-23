@@ -2,20 +2,22 @@
 
 docs (local, sin Spark ni MinIO): CATALOGO.md, LINAJE.md y politicas de MinIO desde los contratos.
 check (contenedor): checks de calidad en Bronce, Plata y Oro, prueba de accesos y CALIDAD_Y_LINAJE.md;
-falla si algo bloqueante no pasa. access (contenedor): solo la prueba de accesos de los usuarios de MinIO.
+falla si algo bloqueante no pasa; con --tables revisa solo esas tablas y con --json deja los resultados
+para Dagster (F5). access (contenedor): solo la prueba de accesos de los usuarios de MinIO.
 Responsable: Victor Gabriel Torres Guerrero (Oficial de Gobernanza y Seguridad)
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
 from lakehouse.common.config import get_settings
-from lakehouse.common.errors import LakehouseError
+from lakehouse.common.errors import ConfigError, LakehouseError
 from lakehouse.common.log import get_logger
 
 log = get_logger("lakehouse.governance")
@@ -58,6 +60,18 @@ def _access(_: argparse.Namespace) -> int:
     return 0 if all(p.ok for p in probes) and not root else 1
 
 
+def selected_contracts(tables: str):
+    """'bronze.spotify_streams,silver.plays' a sus contratos Delta; falla con nombre desconocido."""
+    from lakehouse.governance.contracts import DELTA_TABLES
+
+    known = {c.qualified_name: c for c in DELTA_TABLES}
+    names = [n.strip() for n in tables.split(",") if n.strip()]
+    unknown = [n for n in names if n not in known]
+    if unknown or not names:
+        raise ConfigError(f"Tablas desconocidas en --tables: {', '.join(unknown) or '(vacio)'}")
+    return tuple(known[n] for n in names)
+
+
 def _check(args: argparse.Namespace) -> int:
     from lakehouse.common.delta import TableLocator
     from lakehouse.common.spark import build_spark
@@ -66,13 +80,24 @@ def _check(args: argparse.Namespace) -> int:
     from lakehouse.governance.report import render_report
 
     settings = get_settings()
-    probes = None if args.skip_access else probe_all(settings)
+    # Con --tables (Dagster, tras cada paso): solo esas tablas, sin accesos ni reporte; --cross-layer agrega
+    # reconciliacion y frescura (Dagster lo pide en Oro, el ultimo paso).
+    partial = selected_contracts(args.tables) if args.tables else None
+    probes = None if args.skip_access or partial else probe_all(settings)
     # svc-governance: solo lectura de bronze, silver y gold (D17).
     spark = build_spark("governance", settings.for_role("governance"))
     try:
-        run = run_quality(spark, TableLocator.from_settings(settings))
+        locator = TableLocator.from_settings(settings)
+        if partial:
+            run = run_quality(spark, locator, partial, cross_layer=args.cross_layer)
+        else:
+            run = run_quality(spark, locator)
     finally:
         spark.stop()
+    if args.json:
+        _write(Path(args.json), json.dumps(run.to_dict(), ensure_ascii=True, indent=1))
+    if partial:
+        return 0 if run.ok else 1
     root = root_in_environment()
     report = render_report(run, probes, root, datetime.now(UTC))
     path = _write(Path(args.out) / REPORT_FILE, report)
@@ -101,6 +126,9 @@ def build_parser() -> argparse.ArgumentParser:
     check = sub.add_parser("check", help="Checks de calidad + accesos + CALIDAD_Y_LINAJE.md")
     check.add_argument("--out", default=report_dir, help="Carpeta del reporte (default: REPORT_DIR)")
     check.add_argument("--skip-access", action="store_true", help="No probar los usuarios de MinIO")
+    check.add_argument("--tables", help="Solo estas tablas ('capa.tabla' separadas por coma), sin reporte")
+    check.add_argument("--cross-layer", action="store_true", help="Con --tables: agrega reconciliacion")
+    check.add_argument("--json", help="Ademas escribe los resultados en este JSON (lo lee Dagster)")
 
     sub.add_parser("access", help="Prueba en vivo de lo que cada usuario de MinIO puede y no puede hacer")
     return parser

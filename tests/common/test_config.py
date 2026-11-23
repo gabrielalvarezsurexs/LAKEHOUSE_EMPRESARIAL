@@ -106,3 +106,10 @@ def test_layer_and_table_uris():
 def test_invalid_layer_or_table_raises(layer, table):
     with pytest.raises(ConfigError):
         load_settings(BASE_ENV).table_uri(layer, table)
+
+
+def test_genres_source_default_and_validation():
+    assert load_settings(BASE_ENV).genres_source == "api"
+    assert load_settings({**BASE_ENV, "GENRES_SOURCE": " Synthetic "}).genres_source == "synthetic"
+    with pytest.raises(ConfigError, match="GENRES_SOURCE"):
+        load_settings({**BASE_ENV, "GENRES_SOURCE": "kaggle"})

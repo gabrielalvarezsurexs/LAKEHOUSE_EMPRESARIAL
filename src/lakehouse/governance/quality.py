@@ -7,7 +7,7 @@ Responsable: Victor Gabriel Torres Guerrero (Oficial de Gobernanza y Seguridad)
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -74,6 +74,10 @@ class QualityRun:
     @property
     def ok(self) -> bool:
         return not self.errors
+
+    def to_dict(self) -> dict:
+        """Forma JSON que lee la orquestacion (F5) para sus asset checks; solo conteos y nombres."""
+        return {"row_counts": dict(self.row_counts), "results": [asdict(r) for r in self.results]}
 
 
 def _result(contract: TableContract, kind: str, check: str, failed: int, detail: str = "", severity=ERROR):
@@ -387,15 +391,22 @@ def run_quality(
     locator: TableLocator,
     contracts: tuple[TableContract, ...] = DELTA_TABLES,
     now: datetime | None = None,
+    cross_layer: bool = True,
 ) -> QualityRun:
-    """Corre todos los checks; no lanza error por fallas (lo decide quien llama)."""
+    """Corre los checks; cross_layer agrega reconciliacion y frescura. No lanza error por fallas."""
     run = QualityRun()
     for contract in contracts:
         total, results = table_checks(spark, locator, contract)
         run.row_counts[contract.qualified_name] = total
         run.results += results
-    run.results += reconciliation_checks(spark, locator, run.row_counts)
-    run.results += freshness_checks(spark, locator, now or datetime.now(UTC))
+    if cross_layer:
+        # La reconciliacion necesita los conteos de todas las capas, no solo las pedidas.
+        for contract in DELTA_TABLES:
+            if contract.qualified_name not in run.row_counts:
+                df = read_optional(spark, locator, contract)
+                run.row_counts[contract.qualified_name] = None if df is None else df.count()
+        run.results += reconciliation_checks(spark, locator, run.row_counts)
+        run.results += freshness_checks(spark, locator, now or datetime.now(UTC))
     log.info(
         "Calidad: %d checks en %d tablas, %d fallas (error), %d avisos",
         len(run.results),

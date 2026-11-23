@@ -91,6 +91,15 @@ class S3ObjectStore:
         except Exception as exc:
             _fail("listar", bucket, prefix, exc)
 
+    def usage(self, bucket: str, prefix: str = "") -> tuple[int, int]:
+        """(objetos, bytes) bajo un prefijo; incluye versiones viejas de Delta (monitoreo, F5)."""
+        try:
+            pages = self._client.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=prefix)
+            sizes = [obj["Size"] for page in pages for obj in page.get("Contents", [])]
+        except Exception as exc:
+            _fail("medir", bucket, prefix, exc)
+        return len(sizes), sum(sizes)
+
     def get_metadata(self, bucket, key):
         try:
             return dict(self._client.head_object(Bucket=bucket, Key=key).get("Metadata", {}))

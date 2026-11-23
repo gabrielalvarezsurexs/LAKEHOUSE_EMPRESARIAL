@@ -17,6 +17,8 @@ LAYERS: tuple[str, ...] = ("landing", "bronze", "silver", "gold")
 MIN_SALT_LENGTH = 16
 MIN_SECRET_LENGTH = 8  # MinIO no acepta contrasenas mas cortas
 DEFAULT_MUSICBRAINZ_USER_AGENT = "lakehouse-escolar/0.1 (proyecto academico de datos)"
+# Fuente de generos en la corrida orquestada (F5): la API real o el catalogo sintetico (CI y replica).
+GENRES_SOURCES: tuple[str, ...] = ("api", "synthetic")
 
 # Usuarios de servicio de MinIO (D17). Sus permisos: governance/access.py; los crea infra/minio/init.sh.
 SERVICE_ROLES: tuple[str, ...] = ("ingestion", "transformation", "governance", "ml", "bi")
@@ -51,6 +53,7 @@ class Settings:
     spotify_source_dir: str = "/datos_spotify"
     # Generico a proposito: sin nombres, correos ni URLs personales (regla de privacidad).
     musicbrainz_user_agent: str = DEFAULT_MUSICBRAINZ_USER_AGENT
+    genres_source: str = "api"
 
     def for_role(self, role: str) -> "Settings":
         """Copia con las credenciales del usuario de servicio del rol; falla si falta su contrasena."""
@@ -110,6 +113,9 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise ConfigError(f"S3_ENDPOINT debe ser una URL http(s)://host:puerto, no '{endpoint}'")
     secrets = {r: env.get(secret_env_var(r), "").strip() for r in SERVICE_ROLES}
+    genres_source = env.get("GENRES_SOURCE", "").strip().lower() or "api"
+    if genres_source not in GENRES_SOURCES:
+        raise ConfigError(f"GENRES_SOURCE debe ser {' o '.join(GENRES_SOURCES)}, no '{genres_source}'")
     return Settings(
         s3_endpoint=endpoint.rstrip("/"),
         service_secrets={r: s for r, s in secrets.items() if s},
@@ -119,6 +125,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         spotify_source_dir=env.get("SPOTIFY_SOURCE_DIR", "").strip() or "/datos_spotify",
         musicbrainz_user_agent=env.get("MUSICBRAINZ_USER_AGENT", "").strip()
         or DEFAULT_MUSICBRAINZ_USER_AGENT,
+        genres_source=genres_source,
     )
 
 

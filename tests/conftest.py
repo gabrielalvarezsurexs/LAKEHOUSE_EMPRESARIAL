@@ -45,6 +45,10 @@ class MemoryObjectStore:
     def delete(self, bucket, key):
         self.objects.pop((bucket, key), None)
 
+    def usage(self, bucket, prefix=""):
+        sizes = [len(v[0]) for (b, k), v in self.objects.items() if b == bucket and k.startswith(prefix)]
+        return len(sizes), sum(sizes)
+
 
 @pytest.fixture
 def store():

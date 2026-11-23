@@ -33,5 +33,8 @@ COPY src ./src
 COPY tests ./tests
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen
 
-# F1: el contenedor queda vivo para correr comandos con `docker compose exec`. F5 lo cambia por Dagster.
-CMD ["sleep", "infinity"]
+# F5: Dagster (UI en el puerto 3000, daemon de schedules y sensores). Los CLIs siguen disponibles con
+# `docker compose exec lakehouse python -m lakehouse...`.
+ENV DAGSTER_HOME=/opt/dagster/home
+RUN mkdir -p /opt/dagster/home
+CMD ["dagster", "dev", "-m", "lakehouse.orchestration.definitions", "-h", "0.0.0.0", "-p", "3000"]

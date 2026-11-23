@@ -34,4 +34,5 @@
 # DevOps / MLOps: Nora Valentina Frias Alpizar (0268966)
 /src/lakehouse/orchestration/       @gabrielalvarezsurexs
 /tests/orchestration/               @gabrielalvarezsurexs
+/infra/dagster/                     @gabrielalvarezsurexs
 /.github/workflows/                 @gabrielalvarezsurexs
