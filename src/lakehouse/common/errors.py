@@ -14,3 +14,11 @@ class ConfigError(LakehouseError):
 
 class StorageError(LakehouseError):
     """MinIO no responde o falta un bucket esperado."""
+
+
+class SchemaError(LakehouseError):
+    """Un DataFrame o una tabla no cumple su contrato de esquema."""
+
+
+class TableMissingError(LakehouseError):
+    """Falta una tabla Delta que la etapa necesita (normalmente: no se corrio la etapa anterior)."""

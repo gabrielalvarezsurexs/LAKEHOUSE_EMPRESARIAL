@@ -74,6 +74,10 @@ la sección "Retomar aquí" de [ROADMAP.md](ROADMAP.md). Si algo de aquí cambia
 - Géneros por MusicBrainz; la API de Spotify queda descartada (plan B documentado, no se implementa).
 - ML = predicción de skip con split temporal; la etiqueta queda `null` cuando la reproducción no terminó por
   decisión del usuario.
+- Plata se recalcula completa; `fact_plays` se actualiza con MERGE y re-correr escribe 0 filas (D21). Las tablas
+  de Plata y Oro nacen de su contrato con NOT NULL (D22). `transformation all` falla si la reconciliación no cuadra.
+- Antes de usar una API de una librería, revisar que exista en la versión instalada (`.venv`), no de memoria
+  (H-005).
 - **ML y BI leen solo de Oro.** Los módulos de cada rol se comunican por tablas, no por imports.
 - "Sin ejecuciones manuales" (rúbrica): schedule + sensor en Dagster. "README para replicar" (rúbrica): datos
   sintéticos + prueba desde un clon limpio en F8.

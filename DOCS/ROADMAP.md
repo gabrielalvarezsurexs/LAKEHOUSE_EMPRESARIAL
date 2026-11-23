@@ -1,6 +1,6 @@
 # Roadmap
 
-**Última actualización:** 2026-11-23 (F2 cerrada).
+**Última actualización:** 2026-11-23 (F3 cerrada).
 **Entrega:** lunes 30 de noviembre de 2026 (clase 4 pm; Blackboard 11:59 pm).
 
 Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los commits. Lo que no se puede olvidar
@@ -8,10 +8,12 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
 
 ## Retomar aquí
 
-- 2026-11-23: F2 cerrada (Bronce 15,743 / 0 cuarentena, idempotente; géneros para 1,099 de 1,301 artistas).
-  **Siguiente: F3 (transformación).** Arrancar leyendo `CLAUDE.md`, `DOCS/NO_OLVIDAR.md`, `DOCS/DATOS_FUENTE.md`
-  (§1.3 reglas de Plata, H-003) y la sección F3 de abajo. Las tablas de Bronce y su esquema están en
-  `governance/contracts.py`.
+- 2026-11-23: F3 cerrada (Plata 15,628 canciones + 50 episodios + 65 descartes = 15,743; Oro con estrella,
+  MERGE incremental y 4 marts; reconciliación 4/4 OK).
+  **Siguiente: F4 (gobernanza).** Arrancar leyendo `CLAUDE.md`, `DOCS/NO_OLVIDAR.md`, `DOCS/ARQUITECTURA.md`
+  (D17, D21, D22) y la sección F4 de abajo. Los contratos de las tres capas ya están en `governance/contracts.py`
+  (las tablas de Plata y Oro ya tienen NOT NULL y comentarios por columna; Bronce todavía no). La reconciliación
+  de `transformation/reconcile.py` sirve de base para los checks.
 
 ## Protocolo de cada fase
 
@@ -31,7 +33,7 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
 | F0 | Base: limpieza del repo, CLAUDE.md, docs, roadmap | Gabriel | dom 22 | Hecha | n/a |
 | F1 | Infraestructura: uv, compose, MinIO, imagen Spark+Delta, smoke | Gabriel | lun 23 | Hecha (dom 22) | `01_GABRIEL_ARQUITECTO.md` (borrador) |
 | F2 | Ingesta: landing, Bronce, MusicBrainz, sintéticos | Ricardo | lun 23 a mar 24 | Hecha (lun 23) | `02_RICARDO_INGESTA.md` |
-| F3 | Transformación: Plata y Oro | Juan Pablo | mar 24 a mié 25 | Pendiente | `03_JUAN_PABLO_TRANSFORMACION.md` |
+| F3 | Transformación: Plata y Oro | Juan Pablo | mar 24 a mié 25 | Hecha (lun 23) | `03_JUAN_PABLO_TRANSFORMACION.md` |
 | F4 | Gobernanza: contratos, calidad, catálogo, linaje, seguridad | Victor | mié 25 | Pendiente | `04_VICTOR_GOBERNANZA.md` |
 | F5 | Orquestación, CI/CD, monitoreo y MLflow | Nora | jue 26 | Pendiente | `07_NORA_DEVOPS.md` |
 | F6 | Modelo de ML (skip) | Fernando | jue 26 a vie 27 | Pendiente | `06_FERNANDO_ML.md` |
@@ -90,12 +92,20 @@ Holgura: el domingo 29 queda libre de código. Si una fase se atrasa se recorta 
 
 ## F3. Transformación (Juan Pablo, mar 24 a mié 25)
 
-- [ ] Plata: tipado, dedup (medir antes de fijar llave), música vs podcast, hora local, familia de plataforma,
-      sesiones, `is_skip` (regla de DATOS_FUENTE §1.3 confirmada con conteos), artistas con género.
-- [ ] Oro: dimensiones, `fact_plays` particionada, marts de KPIs; MERGE incremental; OPTIMIZE + Z-ORDER.
-- [ ] Reconciliación de conteos Bronce > Plata > Oro con causa de cada descarte.
-- [ ] Pruebas de cada transformación con DataFrames chicos (corren en el contenedor o en CI).
-- [ ] `MDS_DE_ESTUDIO/03_JUAN_PABLO_TRANSFORMACION.md`.
+- [x] Plata: tipado, dedup (medido: 27), música vs podcast, hora local (con relleno por sesión para `ZZ`),
+      familia de plataforma, sesiones, `is_skip` (regla confirmada con conteos, DATOS_FUENTE §1.3), artistas con
+      género, `offline_timestamp` normalizado (H-003). Plata se recalcula completa (D21).
+- [x] Oro: 4 dimensiones, `fact_plays` particionada por año con MERGE incremental y OPTIMIZE + Z-ORDER por
+      `date_key`, 4 marts de KPIs (diario, top artistas, géneros, retención por cohorte).
+- [x] Contratos de Plata y Oro en `governance/contracts.py`; tablas creadas desde el contrato (D22).
+- [x] Reconciliación Bronce > Plata > Oro con causa de cada descarte (`transformation/reconcile.py`).
+- [x] Pruebas: reglas con filas hechas a mano, paridad Spark/Python, pipeline sintético completo, MERGE
+      (0 cambios al re-correr; borra y actualiza solo lo que cambió), NOT NULL. Local: 126 en verde.
+- [x] Gabriel corrió con los reales (2026-11-23): `pytest` 137 en verde en el contenedor; Plata 15,628 + 50 +
+      65 descartes (27 duplicadas, 38 sin contenido); 1,619 sesiones; 10 sin hora local; 14,174 etiquetadas y
+      2,557 skips (18%); géneros en 678 de 1,301 artistas (H-004). Oro: `fact_plays` 15,628, `dim_date` 3,692,
+      `dim_track` 3,628. Reconciliación 4/4 OK; segunda corrida: MERGE 0/0/0 y sin OPTIMIZE.
+- [x] `MDS_DE_ESTUDIO/03_JUAN_PABLO_TRANSFORMACION.md`.
 - **Listo cuando:** Oro completo y la reconciliación cuadra.
 
 ## F4. Gobernanza y seguridad (Victor, mié 25)

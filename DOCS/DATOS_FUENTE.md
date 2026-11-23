@@ -48,18 +48,31 @@ IPv4 y 217 IPv6.
 Validación de F2 (2026-11-22): las 15,743 filas cumplen el contrato (`lakehouse.governance.contracts`), 0 a
 cuarentena y 0 campos fuera del contrato. `ts` siempre viene como `AAAA-MM-DDTHH:MM:SSZ`.
 
-### 1.3 Reglas que salen de este perfil (para Plata)
+### 1.3 Reglas de Plata (medidas en F3, 2026-11-23; código en `transformation/catalogs.py`)
 
-- **Música vs podcast:** fila de música = `spotify_track_uri` no nulo. Los episodios van a su propia tabla; las
-  filas sin track ni episodio se cuentan y se descartan con causa.
-- **Llave de deduplicación:** `(ts, spotify_track_uri o spotify_episode_uri, ms_played)`. Se mide cuántos duplicados
-  hay antes de fijarla.
-- **Etiqueta de skip (para ML):** propuesta a confirmar con conteos en F3: `is_skip = reason_end in ('fwdbtn',
-  'backbtn') or (ms_played < 30000 and reason_end not in ('logout', 'unexpected-exit-while-paused', 'unknown'))`.
-  Las filas cuya terminación no fue decisión del usuario quedan con etiqueta `null` (mejor vacío que falso).
-- **Hora local:** `ts` es UTC; la hora local se deriva por `conn_country` con un catálogo explícito de zonas. País
-  sin zona en el catálogo: hora local `null` y se cuenta.
-- **Sesiones:** una sesión se corta con un hueco de más de 30 min entre reproducciones.
+- **Música vs podcast:** fila de música = `spotify_track_uri` no nulo (15,653); episodios a su tabla (52); las 38
+  sin canción ni episodio van a `silver._discarded` con causa `no_content` (audiolibros: `audiobook_not_supported`).
+- **Llave de deduplicación:** `(ts, uri de canción o episodio, ms_played)`. Medido: 27 filas extra (22 son filas
+  idénticas; 5 difieren en otros campos). Con `(ts, uri)` serían 35: las 8 de más tienen otro `ms_played` y se
+  conservan (pueden ser eventos distintos). Gana la primera por archivo y posición; la otra va a `_discarded`.
+- **Etiqueta de skip (para ML):** conteos de `reason_end` en música: `trackdone` 10,380, `endplay` 1,851, `fwdbtn`
+  1,534, `logout` 587, `playbtn` 400, `unknown` 349, `unexpected-exit-while-paused` 298, `cosmos` 122,
+  `unexpected-exit` 35, `remote` 34, `backbtn` 32, vacío 19, `trackerror` 12. Regla final:
+  - `fwdbtn`, `backbtn`: skip (incluye 316 `fwdbtn` de 30 s o más: el usuario saltó igual).
+  - `trackdone`: no skip (509 duran menos de 30 s: canciones cortas que terminaron solas).
+  - `endplay`, `playbtn`: skip si `ms_played < 30000`.
+  - Cualquier otro (logout, unknown, unexpected-exit*, remote, trackerror, cosmos, vacío): `null`.
+  - Resultado en Plata: 14,174 etiquetadas (90.7%), 2,557 skips (18.0%).
+- **Vacíos:** strings vacíos o de puros espacios pasan a `null` (19 `reason_start` y 19 `reason_end`).
+- **Hora local:** `ts` es UTC y marca el **fin**; el inicio es `ts - ms_played` y la hora local sale del inicio con
+  la zona del país (catálogo en `catalogs.py`; países con varias zonas usan la de la capital o la más poblada).
+  `conn_country = ZZ` (desconocido, 268 filas de contenido) se guarda como `null`; si su sesión tiene un solo país
+  conocido se usa ese (`tz_source = session`, 255 filas). Quedan 10 reproducciones sin hora local.
+- **Plataforma:** 66 valores a familias (`web`, `smart_device`, `android`, `ios`, `windows`, `macos`, `linux`,
+  `other`); en los reales todas caen en una familia (0 `other`).
+- **Sesiones:** se corta con un hueco de más de 30 min entre el inicio y el fin más tardío anterior: 1,619.
+- **`offline_timestamp`** (H-003): 10 dígitos = segundos, 13 = milisegundos, otro = `null`; queda en `offline_at`.
+- **Géneros:** 678 de 1,301 artistas tienen género (52.1%), 47.9% de las reproducciones (H-004).
 
 ## 2. Géneros (enriquecimiento)
 

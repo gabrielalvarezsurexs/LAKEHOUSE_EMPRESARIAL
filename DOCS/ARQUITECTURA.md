@@ -59,6 +59,8 @@ flowchart LR
 | D18 | **uv** para todo lo local (`pyproject.toml` + `uv.lock` versionados, Python 3.11); la imagen Docker instala con `uv sync --frozen` del mismo lock | Un solo manejador y versiones idénticas en local, contenedor y CI | pip/requirements por separado |
 | D19 | **Código en la raíz**; `ENTREGABLES/` solo con lo que se entrega y no es código, numerado como el PDF | El revisor encuentra cada entregable sin buscar; el código queda como un proyecto Python normal | Todo dentro de `ENTREGABLES/` |
 | D20 | Ingesta: archivos de landing con **boto3**; cada registro se **valida en Python contra el contrato** y luego se escribe a Delta con Spark. Idempotencia con `replaceWhere` sobre el SHA-256 del archivo | Cuarentena por registro con causa exacta (`bad_type:ms_played`); el lector JSON de Spark con `multiLine` marca corrupto el archivo entero. `replaceWhere` hace que re-correr (aun tras una caída a la mitad) no duplique. 15k filas caben de sobra en el driver | Lector JSON de Spark en modo PERMISSIVE; `append` simple |
+| D21 | **Plata se recalcula completa** (overwrite) en cada corrida; **`fact_plays` se actualiza con MERGE** por `play_id` (inserta, actualiza si cambió, borra lo que salió de Plata) y OPTIMIZE + Z-ORDER por `date_key` solo si el MERGE cambió algo; dimensiones y marts se reescriben | Dedup y sesiones dependen de filas vecinas (15k filas: segundos); el MERGE demuestra la carga incremental y re-correr escribe 0 filas | Plata incremental (sesiones rotas en los bordes), reescribir Oro completo |
+| D22 | Las tablas de Plata y Oro se **crean desde su contrato** (tipos, NOT NULL, comentario por columna) y se escriben con `mergeSchema` | Delta rechaza nulls en columnas obligatorias y deja agregar columnas, pero no cambiar tipos: evolución de esquema controlada | Esquema inferido del DataFrame |
 
 ## 2.1 Estructura del repo
 
@@ -82,7 +84,9 @@ ENTREGABLES/              01_diagrama_arquitectura/ 02_infraestructura/ 03_calid
 DOCS/  MDS_DE_ESTUDIO/    docs de trabajo y guías por integrante
 ```
 
-## 3. Tablas por capa (borrador; se cierra en F2 a F4)
+## 3. Tablas por capa
+
+Esquemas exactos (tipos, nulos, descripción): `src/lakehouse/governance/contracts.py`, la única definición.
 
 | Capa | Tabla | Grano | Notas |
 |---|---|---|---|
@@ -90,15 +94,14 @@ DOCS/  MDS_DE_ESTUDIO/    docs de trabajo y guías por integrante
 | bronze | `spotify_streams` | reproducción | Campos fuente (`ts` ya como timestamp UTC) + `ip_addr_hash` + `_source_file`, `_file_sha256`, `_record_index`, `_batch_id`, `_ingested_at` |
 | bronze | `musicbrainz_artists` | artista consultado | `status`, `mbid`, `match_score`, `genres` (nombre y votos) + documento crudo |
 | bronze | `_ingestion_log`, `_quarantine` | archivo / registro | Auditoría y errores con causa |
-
-Esquemas exactos: `src/lakehouse/governance/contracts.py` (única definición).
-| silver | `plays` | reproducción de música | Tipado, dedup, hora local, familia de plataforma, sesión, `is_skip` |
-| silver | `episodes` | reproducción de podcast | |
-| silver | `artists` | artista | Género principal y lista; `null` si no hubo match confiable |
-| gold | `dim_track`, `dim_artist`, `dim_date`, `dim_platform` | dimensión | |
-| gold | `fact_plays` | reproducción | Particionada por año, OPTIMIZE + Z-ORDER por fecha |
+| silver | `plays` | reproducción de música | Sin duplicados ni IP; inicio y fin, hora local, familia de plataforma, sesión, `is_skip`, linaje a Bronce |
+| silver | `episodes` | reproducción de podcast | Mismo contexto que `plays` |
+| silver | `_discarded` | fila de Bronce descartada | Causa (`duplicate`, `no_content`, `audiobook_not_supported`); cuadra la reconciliación |
+| silver | `artists` | artista | Géneros por votos y principal; `null` si no hubo match o no tiene géneros |
+| gold | `dim_track`, `dim_artist`, `dim_date`, `dim_platform` | dimensión | `dim_date` continua; `dim_platform` es catálogo fijo |
+| gold | `fact_plays` | reproducción | MERGE por `play_id`, particionada por año, OPTIMIZE + Z-ORDER por `date_key` (D21) |
 | gold | `kpi_listening_daily`, `kpi_top_artists_monthly`, `kpi_genres_monthly`, `kpi_artist_retention` | agregado | Lo que consume el tablero |
-| gold | `ml_skip_features`, `ml_skip_predictions` | reproducción | Entrada y salida del modelo |
+| gold | `ml_skip_features`, `ml_skip_predictions` | reproducción | Entrada y salida del modelo (F6) |
 
 ## 4. Servicios del compose
 

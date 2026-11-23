@@ -12,7 +12,8 @@ historial extendido de reproducciones de Spotify:
 - **BI:** tablero en Apache Superset sobre la capa Oro.
 - **Dependencias:** uv (Python 3.11) en local; Docker Compose para los servicios.
 
-> **Estado (2026-11-22):** en construcción. Infraestructura (F1) e ingesta (F2) listas; sigue la transformación (F3). Avance en
+> **Estado (2026-11-23):** en construcción. Infraestructura (F1), ingesta (F2) y transformación (F3) listas; sigue
+> gobernanza (F4). Avance en
 > [DOCS/ROADMAP.md](DOCS/ROADMAP.md). Entrega: 30 de noviembre de 2026.
 
 ## Estructura
@@ -60,7 +61,17 @@ Con el historial real (carpeta `SPOTIFY_DATA_DIR` del `.env`): `... ingestion al
 (consulta MusicBrainz una sola vez, ~1 hora). Re-correr no duplica nada. No mezcles sintéticos y reales en el
 mismo MinIO: para cambiar, `docker compose down -v`.
 
-### 3. Pruebas
+### 3. Transformación (Bronce > Plata > Oro)
+
+```powershell
+docker compose exec lakehouse python -m lakehouse.transformation all
+```
+
+Limpia y enriquece en Plata, arma el modelo estrella y los KPIs en Oro, y reconcilia conteos entre capas
+(termina con cuatro líneas `[OK]`; si algo no cuadra, el comando falla). Re-correrlo no escribe filas nuevas en
+`fact_plays` (MERGE incremental).
+
+### 4. Pruebas
 
 ```powershell
 uv sync                              # instala Python 3.11 y las dependencias del uv.lock

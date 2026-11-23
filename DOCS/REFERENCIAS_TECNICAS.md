@@ -67,6 +67,19 @@ Windows 11, 31 GB RAM, 24 hilos, Docker 29.5 + Compose 5.1 (el daemon se prende 
   Delta valida que todas las filas escritas cumplan el predicado.
 - `spark.createDataFrame(filas, contrato.spark_schema())`: el esquema sale del DDL del contrato
   (`_parse_datatype_string`, necesita SparkSession activa). Las fechas deben ir como `datetime` con zona UTC.
+- Crear tabla desde el contrato (F3, `common/delta.py`): `DeltaTable.createIfNotExists(spark).location(uri)
+  .addColumn(nombre, "TIPO DDL", nullable=..., comment=...)`. En Python **no** existe `DeltaTable.columnBuilder`
+  (solo Scala, H-005). Escribir un DataFrame con columnas nullable sobre una tabla NOT NULL funciona; Delta revisa
+  los valores y falla con `NOT NULL constraint violated` sin dejar nada a medias.
+- MERGE (F3): `whenMatchedUpdateAll(condition=...)` con `NOT (t.c <=> s.c)` para no reescribir filas iguales;
+  `whenNotMatchedBySourceDelete()` borra lo que ya no está en la fuente. Las filas tocadas salen de
+  `history(1).operationMetrics` (`numTargetRowsInserted/Updated/Deleted`). La fuente no puede traer llaves repetidas.
+- `OPTIMIZE ... ZORDER BY` reescribe los archivos aunque no haya cambios (no es idempotente): se corre solo cuando
+  el MERGE tocó algo. No se puede hacer Z-ORDER por una columna de partición.
+- Ventanas sin `partitionBy` (sesiones de un solo usuario) hacen que `WindowExec` avise "No Partition Defined";
+  se calla en `log4j2.properties`. Con 15k filas mover todo a una partición no cuesta nada.
+- Hora local: `from_utc_timestamp(ts, columna_de_zona)` acepta la zona como columna; zona `null` da `null` y una
+  zona inválida hace fallar la consulta (la prueba de Spark valida el catálogo).
 
 ## boto3 (archivos crudos en landing)
 

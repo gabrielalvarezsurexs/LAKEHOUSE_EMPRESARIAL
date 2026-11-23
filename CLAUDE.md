@@ -48,6 +48,8 @@ con Spark), con gobernanza, un modelo de ML que lee de Oro y un tablero de BI. I
 - Ingesta (F2), dentro del contenedor: `python -m lakehouse.ingestion all` (landing + Bronce; idempotente),
   `... genres` (MusicBrainz, ~55 min la primera vez, luego caché), `... synthetic --out <dir>` (datos falsos).
   Ayuda: `python -m lakehouse.ingestion --help`. Necesita `IP_HASH_SALT` en `.env`.
+- Transformación (F3), dentro del contenedor: `python -m lakehouse.transformation all` (Plata + Oro +
+  reconciliación; falla si los conteos no cuadran). También `silver`, `gold` o `reconcile` por separado.
 - Los comandos exactos de cada pieza se agregan aquí al cerrar su fase.
 
 ## Seguridad y privacidad
