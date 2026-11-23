@@ -1,0 +1,69 @@
+# Responsable: Gabriel Alvarez Mendoza (Arquitecto de Datos / Lider)
+# Stack local del lakehouse (D1). Uso: copia .env.example a .env y corre `docker compose up -d --build`.
+# F5 agrega Dagster y MLflow; F7 agrega Superset.
+
+name: lakehouse
+
+services:
+  minio:
+    # MinIO ya no publica imagenes libres (Docker Hub oct 2025, quay.io sep 2026). Usamos la de Chainguard,
+    # fijada por digest (build del 2026-11-22) para que nunca cambie sin que lo decidamos (D2).
+    image: cgr.dev/chainguard/minio@sha256:548147b5fc95a67e3e45285dff7e0e50326c3eb1977c6218039461771156c5e7
+    command: ["server", "/data", "--console-address", ":9001"]
+    # La imagen corre como 65532 y el volumen nuevo nace de root: sin esto MinIO no puede escribir.
+    user: "0:0"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Falta MINIO_ROOT_USER en .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Falta MINIO_ROOT_PASSWORD en .env}
+    ports:
+      - "9000:9000"  # API S3
+      - "9001:9001"  # consola web
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+
+  minio-init:
+    # Variante -dev porque trae shell para correr init.sh; tambien fijada por digest.
+    image: cgr.dev/chainguard/minio-client:latest-dev@sha256:9751bbefa7fa338f5f1fedd1682b3df80134aa0546c3bf91bbbf0976cda7d730
+    entrypoint: ["/bin/sh", "/init/init.sh"]
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MC_CONFIG_DIR: /tmp/mc
+    volumes:
+      - ./infra/minio:/init:ro
+    depends_on:
+      minio:
+        condition: service_started
+    restart: "no"
+
+  lakehouse:
+    build:
+      context: .
+      dockerfile: infra/app/Dockerfile
+    image: lakehouse-app:local
+    # Solo las variables que necesita; nunca el .env completo (minimo privilegio).
+    environment:
+      S3_ENDPOINT: http://minio:9000
+      # F1 usa el usuario root de MinIO; F4 lo cambia por un usuario de servicio con politica minima (D17).
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      SPARK_DRIVER_MEMORY: ${SPARK_DRIVER_MEMORY:-4g}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      RUN_SPARK_TESTS: "1"
+    ports:
+      - "4040:4040"  # Spark UI (mientras corre un job)
+    volumes:
+      # Codigo montado: los cambios se ven sin reconstruir la imagen (solo si cambia uv.lock).
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      # Datos reales de Spotify, solo lectura (F2). Nunca se copian a la imagen.
+      - ${SPOTIFY_DATA_DIR:-./DATOS_SPOTIFY}:/datos_spotify:ro
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  minio-data:

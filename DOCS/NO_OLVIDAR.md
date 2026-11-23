@@ -62,7 +62,10 @@ la sección "Retomar aquí" de [ROADMAP.md](ROADMAP.md). Si algo de aquí cambia
 
 ## Decisiones técnicas que no se reabren (detalle en ARQUITECTURA.md)
 
-- MinIO con imagen **fijada de `quay.io`** (Docker Hub ya no la publica); un bucket por capa.
+- MinIO con imagen de **Chainguard fijada por digest** (Docker Hub y quay.io ya no la dan gratis, H-002); un
+  bucket por capa.
+- El contenedor `lakehouse` monta `./src` y `./tests`: cambiar código **no** requiere reconstruir; solo cambiar
+  `uv.lock` o el Dockerfile (`docker compose up -d --build`).
 - Delta Lake + **Spark** (lo vimos en clase) en contenedor; Dagster orquesta; Superset + DuckDB para BI; MLflow
   para el modelo.
 - Géneros por MusicBrainz; la API de Spotify queda descartada (plan B documentado, no se implementa).

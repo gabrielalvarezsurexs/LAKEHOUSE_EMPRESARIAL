@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# Scripts y Dockerfiles corren en Linux: siempre LF, aunque se clone en Windows.
+*.sh text eol=lf
+Dockerfile text eol=lf

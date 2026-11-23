@@ -40,7 +40,7 @@ flowchart LR
 | Id | Decisión | Por qué | Alternativa descartada |
 |---|---|---|---|
 | D1 | Todo local en Docker Compose, $0 | Lo permite el PDF; replicable con un solo comando | Nube (costo, cuentas) |
-| D2 | **MinIO** como almacenamiento S3, imagen fijada a un tag de 2025 | Lo nombra la rúbrica. MinIO dejó de publicar imágenes comunitarias en oct 2025; un tag fijado es estable | SeaweedFS (no lo nombra la rúbrica) |
+| D2 | **MinIO** como almacenamiento S3, imagen de Chainguard fijada por digest | Lo nombra la rúbrica. MinIO cerró Docker Hub (oct 2025) y quay.io (sep 2026, H-002); Chainguard es gratis, mantenida y el digest no cambia | SeaweedFS (no lo nombra la rúbrica), imagen vieja de quay (ya no baja) |
 | D3 | **Un bucket por capa**: `landing`, `bronze`, `silver`, `gold` | Permite políticas de acceso por capa (mínimo privilegio) | Un bucket con prefijos |
 | D4 | **Delta Lake** como formato de tabla | Rúbrica; ACID, esquema forzado, MERGE, time travel, OPTIMIZE | Iceberg (más piezas: catálogo REST) |
 | D5 | **Spark (PySpark) en modo local dentro de un contenedor** | Lo vimos en clase. En contenedor se evita winutils/Hadoop de Windows | Cluster master/worker (más RAM, mismo resultado con 15k filas) |
@@ -65,7 +65,7 @@ flowchart LR
 /                         README (cómo replicar), CLAUDE.md, pyproject.toml, uv.lock, .python-version,
                           .env.example, docker-compose.yml
 src/lakehouse/
-  common/                 config, SparkSession, logging, errores           (Gabriel)
+  common/                 config, SparkSession, logs, errores, smoke       (Gabriel)
   ingestion/              landing, Bronce, MusicBrainz, sintéticos          (Ricardo)
   transformation/         Plata y Oro                                       (Juan Pablo)
   governance/             contratos, calidad, catálogo, linaje, seudónimos  (Victor)
@@ -97,12 +97,12 @@ DOCS/  MDS_DE_ESTUDIO/    docs de trabajo y guías por integrante
 | gold | `kpi_listening_daily`, `kpi_top_artists_monthly`, `kpi_genres_monthly`, `kpi_artist_retention` | agregado | Lo que consume el tablero |
 | gold | `ml_skip_features`, `ml_skip_predictions` | reproducción | Entrada y salida del modelo |
 
-## 4. Servicios del compose (borrador)
+## 4. Servicios del compose
 
 | Servicio | Imagen | Puerto | Dueño |
 |---|---|---|---|
-| `minio` | `quay.io/minio/minio` (tag fijado) | 9000 API, 9001 consola | Gabriel |
-| `minio-init` | `quay.io/minio/mc` (tag fijado) | | Gabriel (buckets), Victor (usuarios y políticas) |
-| `lakehouse` | propia: Python 3.11 + Java 17 + PySpark + delta-spark + Dagster | 3000 Dagster, 4040 Spark UI | Gabriel (imagen), Nora (Dagster) |
+| `minio` | `cgr.dev/chainguard/minio` (digest fijado) | 9000 API, 9001 consola | Gabriel |
+| `minio-init` | `cgr.dev/chainguard/minio-client:latest-dev` (digest fijado) | | Gabriel (buckets), Victor (usuarios y políticas) |
+| `lakehouse` | propia (`infra/app/Dockerfile`): Python 3.11 + Java 17 + PySpark + delta-spark (+ Dagster en F5) | 3000 Dagster (F5), 4040 Spark UI | Gabriel (imagen), Nora (Dagster) |
 | `mlflow` | `ghcr.io/mlflow/mlflow` (tag fijado) | 5000 | Nora |
 | `superset` | propia: `apache/superset` + `duckdb-engine` | 8088 | Emilio |

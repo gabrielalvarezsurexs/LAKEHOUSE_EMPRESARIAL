@@ -1,0 +1,36 @@
+# Responsable: Gabriel Alvarez Mendoza (Arquitecto de Datos / Lider)
+# Dependencias del lakehouse (uv). El mismo uv.lock se usa en local, en la imagen Docker y en CI (D18).
+
+[project]
+name = "lakehouse"
+version = "0.1.0"
+description = "Data Lakehouse local (MinIO + Delta Lake + Spark) sobre el historial extendido de Spotify."
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "pyspark>=3.5.3,<3.6",
+    "delta-spark>=3.3,<3.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --import-mode=importlib"
+markers = [
+    "spark: necesita Java y Spark; corre en el contenedor o en CI (RUN_SPARK_TESTS=1)",
+]

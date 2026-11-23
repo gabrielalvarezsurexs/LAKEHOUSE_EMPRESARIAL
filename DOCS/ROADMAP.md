@@ -1,6 +1,6 @@
 # Roadmap
 
-**Última actualización:** 2026-11-22 (F0 cerrada).
+**Última actualización:** 2026-11-22 (F1 cerrada).
 **Entrega:** lunes 30 de noviembre de 2026 (clase 4 pm; Blackboard 11:59 pm).
 
 Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los commits. Lo que no se puede olvidar
@@ -8,8 +8,9 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
 
 ## Retomar aquí
 
-- 2026-11-22: F0 cerrada (historial del repo ya reescrito por Gabriel). **Siguiente: F1.** Arrancar leyendo
-  `CLAUDE.md`, `DOCS/NO_OLVIDAR.md` y la sección F1 de abajo.
+- 2026-11-22: F1 cerrada (smoke OK en Docker; 18 pruebas en verde dentro del contenedor, incluida la de Spark).
+  **Siguiente: F2 (ingesta).** Arrancar leyendo `CLAUDE.md`, `DOCS/NO_OLVIDAR.md`, `DOCS/DATOS_FUENTE.md` y la
+  sección F2 de abajo.
 
 ## Protocolo de cada fase
 
@@ -27,7 +28,7 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
 | Fase | Qué | Rol dueño | Fecha objetivo | Estado | Guía de estudio |
 |---|---|---|---|---|---|
 | F0 | Base: limpieza del repo, CLAUDE.md, docs, roadmap | Gabriel | dom 22 | Hecha | n/a |
-| F1 | Infraestructura: uv, compose, MinIO, imagen Spark+Delta, smoke | Gabriel | lun 23 | Pendiente | `01_GABRIEL_ARQUITECTO.md` (borrador) |
+| F1 | Infraestructura: uv, compose, MinIO, imagen Spark+Delta, smoke | Gabriel | lun 23 | Hecha (dom 22) | `01_GABRIEL_ARQUITECTO.md` (borrador) |
 | F2 | Ingesta: landing, Bronce, MusicBrainz, sintéticos | Ricardo | lun 23 a mar 24 | Pendiente | `02_RICARDO_INGESTA.md` |
 | F3 | Transformación: Plata y Oro | Juan Pablo | mar 24 a mié 25 | Pendiente | `03_JUAN_PABLO_TRANSFORMACION.md` |
 | F4 | Gobernanza: contratos, calidad, catálogo, linaje, seguridad | Victor | mié 25 | Pendiente | `04_VICTOR_GOBERNANZA.md` |
@@ -51,21 +52,22 @@ Holgura: el domingo 29 queda libre de código. Si una fase se atrasa se recorta 
       HALLAZGOS, ROADMAP), plantilla de `MDS_DE_ESTUDIO/`, README raíz.
 - [x] Historial reescrito y forzado por Gabriel.
 
-## F1. Infraestructura (Gabriel, lun 23)
+## F1. Infraestructura (Gabriel, lun 23) : hecha
 
-- [ ] uv: `pyproject.toml` (layout `src/`, grupos `ml` y `dev`, config de ruff y pytest), `.python-version` 3.11,
-      `uv.lock`. Claude corre `uv sync` y `uv run pytest` (prueba de humo sin Spark).
-- [ ] Esqueleto `src/lakehouse/` con un subpaquete por rol y encabezado `Responsable:`; `tests/` espejo.
-- [ ] `src/lakehouse/common/`: `config.py` (lee `.env`), `spark.py` (SparkSession con Delta y S3A), `logging.py`,
-      `errors.py`.
-- [ ] `infra/app/Dockerfile`: Python 3.11 + Java 17 + JARs de S3A; instala con `uv sync --frozen`.
-- [ ] `docker-compose.yml`: `minio` (imagen fijada de quay.io), `minio-init` (buckets `landing`, `bronze`,
-      `silver`, `gold`), `lakehouse`; healthchecks y volúmenes.
-- [ ] `.env.example` completo y comentado.
-- [ ] `.github/CODEOWNERS` (carpeta por rol, documental).
-- [ ] Smoke (lo corre Gabriel): desde el contenedor, escribir y leer una tabla Delta en MinIO.
-- [ ] `ENTREGABLES/01_diagrama_arquitectura/` v1 y `ENTREGABLES/02_infraestructura/README.md`.
-- [ ] README raíz: requisitos y cómo levantar la infraestructura.
+- [x] uv: `pyproject.toml` (layout `src/`, grupo `dev`; `ml` se agrega en F6, Dagster en F5), `.python-version`
+      3.11, `uv.lock` (PySpark 3.5.10, delta-spark 3.3.3).
+- [x] Esqueleto `src/lakehouse/` con un subpaquete por rol y encabezado `Responsable:`; `tests/` espejo.
+- [x] `src/lakehouse/common/`: `config.py`, `spark.py`, `log.py` (no `logging.py` para no tapar el estándar),
+      `errors.py`, `smoke.py`.
+- [x] `infra/app/Dockerfile` + `fetch_jars.sh` (JARs derivados del lock, SHA-1 verificado).
+- [x] `docker-compose.yml`: `minio` (Chainguard por digest, H-002), `minio-init` (`infra/minio/init.sh`),
+      `lakehouse` (monta `src/` y `tests/`).
+- [x] `.env.example` comentado (F2 agrega la sal de IP).
+- [x] `.github/CODEOWNERS` (carpeta por rol en comentarios).
+- [x] Smoke (lo corrió Gabriel): buckets OK, Delta 150/100/2 versiones; `pytest` 18 en verde en el contenedor.
+- [x] `ENTREGABLES/01_diagrama_arquitectura/DIAGRAMA.md` v1 y `ENTREGABLES/02_infraestructura/README.md`.
+- [x] README raíz: requisitos y cómo levantar la infraestructura.
+- [x] `MDS_DE_ESTUDIO/01_GABRIEL_ARQUITECTO.md` (borrador).
 - **Listo cuando:** `docker compose up` levanta todo sano y el smoke pasa.
 
 ## F2. Ingesta (Ricardo, lun 23 a mar 24)

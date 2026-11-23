@@ -43,6 +43,8 @@ con Spark), con gobernanza, un modelo de ML que lee de Oro y un tablero de BI. I
 - **Todo lo local con uv:** `uv sync`, `uv run pytest`, `uv run ruff check .`, `uv run python -m lakehouse...`.
   Nunca `pip install`. Python 3.11 fijado en `.python-version`.
 - Servicios (MinIO, Spark, Dagster, MLflow, Superset) con Docker Compose; la imagen instala con `uv sync --frozen`.
+- Infra (F1): `docker compose up -d --build`; smoke: `docker compose exec lakehouse python -m lakehouse.common.smoke`;
+  pruebas con Spark: `docker compose exec lakehouse pytest`. El contenedor monta `src/` y `tests/` (sin rebuild).
 - Los comandos exactos de cada pieza se agregan aquí al cerrar su fase.
 
 ## Seguridad y privacidad

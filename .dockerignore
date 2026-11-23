@@ -1,0 +1,11 @@
+# Responsable: Gabriel Alvarez Mendoza (Arquitecto de Datos / Lider)
+# La imagen solo necesita pyproject, uv.lock, src/, tests/ e infra/app/. Nunca datos ni secretos.
+*
+!pyproject.toml
+!uv.lock
+!.python-version
+!src/
+!tests/
+!infra/app/
+**/__pycache__
+**/*.pyc

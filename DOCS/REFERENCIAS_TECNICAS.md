@@ -15,25 +15,41 @@ Windows 11, 31 GB RAM, 24 hilos, Docker 29.5 + Compose 5.1 (el daemon se prende 
 - Grupos de dependencias para no cargar todo en todos lados: base (pyspark, delta-spark, dagster), `ml`
   (scikit-learn, mlflow), `dev` (pytest, ruff). Se agregan con `uv add <pkg>` / `uv add --group dev <pkg>`.
 - Comandos: `uv sync`, `uv run pytest`, `uv run ruff check .`, `uv run python -m lakehouse.<modulo>`.
-- Dockerfile: copia `pyproject.toml` y `uv.lock`, corre `uv sync --frozen --no-dev` (capa cacheada), luego copia
-  `src/`. La imagen oficial de uv se toma con `COPY --from=ghcr.io/astral-sh/uv:<tag fijado> /uv /bin/`.
+- Dockerfile: copia `pyproject.toml` y `uv.lock`, corre `uv sync --frozen --no-install-project` (capa
+  cacheada), luego copia `src/` y `tests/` y sincroniza el proyecto. Incluye el grupo `dev` para correr pytest
+  dentro del contenedor. El venv vive en `/opt/venv` para que montar `./src` (compose) no lo tape. uv se toma con
+  `COPY --from=ghcr.io/astral-sh/uv:0.11.16 /uv /uvx /bin/`.
+- Pruebas con Spark: marcador `@pytest.mark.spark`; solo corren con `RUN_SPARK_TESTS=1` (el contenedor lo trae).
+- Ver el avance de un build: `docker compose --progress plain build lakehouse` (`--progress` va antes de
+  `build`). No canalizar a `Select-Object -Last`: no imprime nada hasta terminar.
+- Avisos normales del smoke (no son errores): `NativeCodeLoader`, `MetricsConfig` de S3A y
+  `DeltaHistoryManager ... timestamp greater than` (dos commits en el mismo segundo; Delta ajusta el orden).
+- ¿Por qué Java? Spark es un motor de la JVM; PySpark solo lo controla desde Python. La alternativa sin Java
+  (delta-rs + Polars/DuckDB) se descartó porque el curso usa Spark.
 - Superset es imagen aparte (no comparte el lock): solo agrega `duckdb-engine` con versión fijada.
 
 ## MinIO
 
-- En oct 2025 MinIO dejó de publicar imágenes comunitarias en Docker Hub (`docker pull minio/minio` falla) y el
-  proyecto entró en modo mantenimiento en dic 2025.
-- Se usa un tag fijado de `quay.io/minio/minio` (último comunitario conocido: `RELEASE.2025-09-07T16-13-09Z`;
-  verificar en F1 que baje). Plan B: `cgr.dev/chainguard/minio` (gratis, mantenida).
-- Cliente `mc` también fijado (`quay.io/minio/mc`), para crear buckets, usuarios y políticas en `minio-init`.
-- Fuentes: [Minimus: cambios de la imagen](https://www.minimus.io/post/minio-docker-image-changes-how-to-find-a-secure-minio-alternative),
-  [MinIO CE en 2026](https://dev.to/rosgluk/minio-ce-in-2026-retired-upstream-source-only-and-what-to-use-1k02),
-  [Chainguard MinIO](https://edu.chainguard.dev/chainguard/containers/getting-started/minio/).
+- En oct 2025 MinIO dejó de publicar imágenes comunitarias en Docker Hub y en sep 2026 cerró también el acceso
+  anónimo a `quay.io/minio/*` (responde 401; verificado el 2026-11-22, ver H-002). Su último release libre trae
+  CVE-2026-40344.
+- **Se usa Chainguard** (gratis, compilada desde el código fuente y mantenida): `cgr.dev/chainguard/minio` y
+  `cgr.dev/chainguard/minio-client:latest-dev` (la `-dev` trae shell para `init.sh`). El plan gratuito solo da
+  `latest`, así que se **fijan por digest** en `docker-compose.yml`. Para actualizar: tomar el digest nuevo y
+  correr el smoke.
+- Ambas corren como el usuario 65532 sin shell (la de MinIO); `minio` corre con `user: "0:0"` para poder escribir
+  en el volumen nuevo, y no tiene healthcheck (no trae curl ni `mc`): `minio-init` espera con reintentos.
+- Fuentes: [Chainguard MinIO](https://www.chainguard.dev/docs/chainguard/containers/getting-started/web-and-data-services/minio),
+  [IBM: imagen retirada de quay.io](https://www.ibm.com/support/pages/node/7289585),
+  [MinIO CE en 2026](https://dev.to/rosgluk/minio-ce-in-2026-retired-upstream-source-only-and-what-to-use-1k02).
 
-## Spark + Delta + S3A (verificar en F1)
+## Spark + Delta + S3A
 
-- Combinación objetivo, muy documentada: **PySpark 3.5.x + delta-spark 3.3.x + hadoop-aws 3.3.4 +
-  aws-java-sdk-bundle 1.12.262**, Java 17, Python 3.11. Los JAR se bajan al construir la imagen (no en cada corrida).
+- Fijado en F1 (uv.lock): **PySpark 3.5.10 + delta-spark 3.3.3**, con hadoop-aws 3.3.4 + aws-java-sdk-bundle
+  1.12.262, Java 17 (Debian bookworm), Python 3.11.18 (`python:3.11.18-slim-bookworm`), uv 0.11.16.
+- Los JAR los baja `infra/app/fetch_jars.sh` al construir la imagen, **derivando las versiones del lock** (Delta
+  de `delta-spark`, Hadoop y Scala de los JAR que trae PySpark) y verificando el SHA-1 de Maven Central. Si se
+  actualiza PySpark o Delta con `uv lock`, los JAR se ajustan solos al reconstruir.
 - Configuración clave de la SparkSession:
   - `spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension`
   - `spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog`

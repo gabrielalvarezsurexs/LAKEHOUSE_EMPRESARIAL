@@ -1,0 +1,37 @@
+# Responsable: Gabriel Alvarez Mendoza (Arquitecto de Datos / Lider)
+# Mapa de autoria por carpeta (ver DOCS/EQUIPO.md). Todos los commits los hace Gabriel, por eso el dueno en
+# GitHub es su cuenta; el comentario de cada bloque dice que integrante es responsable de esa parte.
+
+# Default y arquitectura: Gabriel Alvarez Mendoza (0261445), Arquitecto de Datos / Lider
+*                                   @gabrielalvarezsurexs
+/docker-compose.yml                 @gabrielalvarezsurexs
+/infra/app/                         @gabrielalvarezsurexs
+/infra/minio/                       @gabrielalvarezsurexs
+/src/lakehouse/common/              @gabrielalvarezsurexs
+
+# Ingesta: Ricardo Zeron del Valle (0261606)
+/src/lakehouse/ingestion/           @gabrielalvarezsurexs
+/tests/ingestion/                   @gabrielalvarezsurexs
+
+# Transformacion: Juan Pablo Ramirez Carlon (0262576)
+/src/lakehouse/transformation/      @gabrielalvarezsurexs
+/tests/transformation/              @gabrielalvarezsurexs
+
+# Gobernanza y seguridad: Victor Gabriel Torres Guerrero (0265786)
+/src/lakehouse/governance/          @gabrielalvarezsurexs
+/tests/governance/                  @gabrielalvarezsurexs
+/infra/minio/policies/              @gabrielalvarezsurexs
+
+# BI: Emilio Rendon Trias (0267019)
+/bi/                                @gabrielalvarezsurexs
+/infra/superset/                    @gabrielalvarezsurexs
+
+# ML: Fernando Pena Meade (0261604)
+/src/lakehouse/ml/                  @gabrielalvarezsurexs
+/tests/ml/                          @gabrielalvarezsurexs
+/notebooks/                         @gabrielalvarezsurexs
+
+# DevOps / MLOps: Nora Valentina Frias Alpizar (0268966)
+/src/lakehouse/orchestration/       @gabrielalvarezsurexs
+/tests/orchestration/               @gabrielalvarezsurexs
+/.github/workflows/                 @gabrielalvarezsurexs
