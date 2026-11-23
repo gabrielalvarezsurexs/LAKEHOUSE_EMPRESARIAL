@@ -1,5 +1,6 @@
 """Prueba de humo de la infraestructura: buckets en MinIO y escritura/lectura Delta con Spark.
 
+Cada bucket se revisa con un usuario de servicio que puede leerlo (D17); el root no entra al contenedor.
 Uso (dentro del contenedor): python -m lakehouse.common.smoke
 Responsable: Gabriel Alvarez Mendoza (Arquitecto de Datos / Lider)
 """
@@ -13,6 +14,7 @@ from lakehouse.common.config import LAYERS, Settings, get_settings
 from lakehouse.common.errors import LakehouseError, StorageError
 from lakehouse.common.log import get_logger
 from lakehouse.common.spark import build_spark
+from lakehouse.common.storage import S3ObjectStore
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
@@ -21,25 +23,30 @@ log = get_logger("lakehouse.smoke")
 
 # Prefijo temporal: se borra al inicio y al final para no dejar basura en Bronce.
 SMOKE_TABLE = "_smoke/delta_check"
+# Rol con permiso de lectura en cada bucket (landing solo lo lee la ingesta: trae la IP en claro).
+BUCKET_READERS = {
+    "landing": "ingestion",
+    "bronze": "governance",
+    "silver": "governance",
+    "gold": "governance",
+}
+
+
+def check_buckets(settings: Settings) -> None:
+    """Lista cada bucket con su lector; si el bucket no existe o el usuario no sirve, falla."""
+    for layer in LAYERS:
+        role = BUCKET_READERS[layer]
+        try:
+            S3ObjectStore(settings.for_role(role)).list_keys(layer, "_smoke_probe/")
+        except StorageError as exc:
+            raise StorageError(f"No pude leer '{layer}' como svc-{role}. Corrio minio-init? {exc}") from exc
+        log.info("Bucket %s: OK (svc-%s)", layer, role)
 
 
 def _hadoop_path(spark: SparkSession, uri: str):
     jvm = spark.sparkContext._jvm
     path = jvm.org.apache.hadoop.fs.Path(uri)
     return path, path.getFileSystem(spark.sparkContext._jsc.hadoopConfiguration())
-
-
-def check_buckets(spark: SparkSession, settings: Settings) -> None:
-    """Lista la raiz de cada capa; si un bucket no existe S3A lanza error."""
-    for layer in LAYERS:
-        path, fs = _hadoop_path(spark, settings.layer_uri(layer) + "/")
-        try:
-            fs.listStatus(path)
-        except Exception as exc:  # py4j envuelve la excepcion de Java
-            raise StorageError(
-                f"No pude leer el bucket '{layer}'. Corrio minio-init? Detalle: {exc}"
-            ) from exc
-        log.info("Bucket %s: OK", layer)
 
 
 def check_delta(spark: SparkSession, settings: Settings) -> None:
@@ -66,17 +73,21 @@ def check_delta(spark: SparkSession, settings: Settings) -> None:
 def main() -> int:
     settings = get_settings()
     log.info("Smoke contra %s (master %s)", settings.s3_endpoint, settings.spark_master)
-    spark = build_spark("smoke", settings)
+    try:
+        check_buckets(settings)
+        spark = build_spark("smoke", settings.for_role("ingestion"))
+    except LakehouseError as exc:
+        log.error("Smoke FALLO: %s", exc)
+        return 1
     try:
         log.info("Spark %s", spark.version)
-        check_buckets(spark, settings)
-        check_delta(spark, settings)
+        check_delta(spark, settings.for_role("ingestion"))
     except LakehouseError as exc:
         log.error("Smoke FALLO: %s", exc)
         return 1
     finally:
         spark.stop()
-    log.info("Smoke OK: MinIO, Spark y Delta funcionan.")
+    log.info("Smoke OK: MinIO, usuarios de servicio, Spark y Delta funcionan.")
     return 0
 
 

@@ -42,6 +42,18 @@ Windows 11, 31 GB RAM, 24 hilos, Docker 29.5 + Compose 5.1 (el daemon se prende 
   correr el smoke.
 - Ambas corren como el usuario 65532 sin shell (la de MinIO); `minio` corre con `user: "0:0"` para poder escribir
   en el volumen nuevo, y no tiene healthcheck (no trae curl ni `mc`): `minio-init` espera con reintentos.
+- Usuarios y políticas (F4, `infra/minio/init.sh`), con el `mc` reciente:
+  - `mc admin policy create ALIAS nombre archivo.json` crea o reemplaza la política.
+  - `mc admin user add ALIAS usuario secreto` es idempotente y cambia el secreto.
+  - `mc admin policy attach ALIAS política --user usuario` falla con "already in effect" si ya estaba asignada; se
+    toma como éxito.
+  - Ya no existen los antiguos `policy add` ni `policy set`.
+- Acciones S3 que necesitan S3A y boto3:
+  - **Lectura:** `GetObject`, `ListBucket` y `GetBucketLocation`.
+  - **Escritura:** `PutObject` y `DeleteObject` (S3A borra los marcadores de directorio), más
+    `AbortMultipartUpload`, `ListMultipartUploadParts` y `ListBucketMultipartUploads`.
+  - Un prefijo (`gold/ml_*`) limita la escritura a esas tablas.
+  - Un permiso negado llega como `AccessDenied` (403) y se lanza `AccessDeniedError`.
 - Fuentes: [Chainguard MinIO](https://www.chainguard.dev/docs/chainguard/containers/getting-started/web-and-data-services/minio),
   [IBM: imagen retirada de quay.io](https://www.ibm.com/support/pages/node/7289585),
   [MinIO CE en 2026](https://dev.to/rosgluk/minio-ce-in-2026-retired-upstream-source-only-and-what-to-use-1k02).
@@ -78,6 +90,19 @@ Windows 11, 31 GB RAM, 24 hilos, Docker 29.5 + Compose 5.1 (el daemon se prende 
   el MERGE tocó algo. No se puede hacer Z-ORDER por una columna de partición.
 - Ventanas sin `partitionBy` (sesiones de un solo usuario) hacen que `WindowExec` avise "No Partition Defined";
   se calla en `log4j2.properties`. Con 15k filas mover todo a una partición no cuesta nada.
+- Metadatos en tablas existentes (F4, `common/delta.py`):
+  - ``ALTER TABLE delta.`<uri>` SET TBLPROPERTIES ('comment' = ..., 'lakehouse.owner' = ...)``; el `comment`
+    cambia la descripción de la tabla.
+  - ``ALTER TABLE delta.`<uri>` ALTER COLUMN `c` COMMENT '...'``.
+  - Cada `ALTER` es un commit, así que solo se aplica lo que difiere. Las propiedades sin prefijo `delta.` son
+    libres.
+  - Escribir con `overwrite` conserva los comentarios.
+  - Al crear la tabla: `DeltaTableBuilder.property(k, v)`. Para leerlos: `DeltaTable.detail()` (`description` y
+    `properties`).
+- Frescura: `DeltaTable.history()` con `operation` en `WRITE`/`MERGE`/`DELETE`/`UPDATE`. Se ignoran
+  `SET TBLPROPERTIES`, `CHANGE COLUMN`, `CREATE TABLE` y `OPTIMIZE` porque no cambian datos.
+- `DeltaHistoryManager ... timestamp greater than` sale al leer el historial de tablas con varios commits en el
+  mismo segundo (los `ALTER`). Es benigno y se calla en `log4j2.properties`.
 - Hora local: `from_utc_timestamp(ts, columna_de_zona)` acepta la zona como columna; zona `null` da `null` y una
   zona inválida hace fallar la consulta (la prueba de Spark valida el catálogo).
 

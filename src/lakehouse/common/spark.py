@@ -12,12 +12,13 @@ from lakehouse.common.config import Settings, get_settings
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
 
-# Llaves fijas del .env (no roles de AWS ni variables AWS_*).
+# Llaves fijas del usuario de servicio (no roles de AWS ni variables AWS_*).
 _CREDENTIALS_PROVIDER = "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
 
 
 def spark_conf(settings: Settings) -> dict[str, str]:
-    """Configuracion de Spark; funcion pura para poder probarla sin Java."""
+    """Configuracion de Spark; funcion pura para poder probarla sin Java. Pide un rol (D17)."""
+    settings.require_credentials()
     return {
         "spark.master": settings.spark_master,
         "spark.driver.memory": settings.spark_driver_memory,
@@ -44,11 +45,11 @@ def spark_conf(settings: Settings) -> dict[str, str]:
 
 
 def build_spark(app_name: str, settings: Settings | None = None) -> SparkSession:
-    """Crea (o reutiliza) la SparkSession del proceso. Los JAR de Delta y S3A vienen en la imagen."""
+    """Crea (o reutiliza) la SparkSession del proceso. Sin settings usa el rol que se llama como la app."""
     from pyspark.sql import SparkSession
 
     builder = SparkSession.builder.appName(app_name)
-    for key, value in spark_conf(settings or get_settings()).items():
+    for key, value in spark_conf(settings or get_settings().for_role(app_name)).items():
         builder = builder.config(key, value)
     spark = builder.getOrCreate()
     spark.sparkContext.setLogLevel("WARN")

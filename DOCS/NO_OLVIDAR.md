@@ -57,7 +57,9 @@ la sección "Retomar aquí" de [ROADMAP.md](ROADMAP.md). Si algo de aquí cambia
   canciones/artistas concretos.
 - **Las capturas del tablero sí muestran artistas y canciones reales:** el dueño de los datos las aprueba antes de
   subirlas a `ENTREGABLES/`.
-- `ip_addr`: hash con sal en Bronce, se elimina en Plata. La sal y las llaves viven en `.env` (nunca se imprime).
+- `ip_addr`: hash con sal en Bronce, se elimina en Plata (un check de privacidad lo verifica en cada tabla). La
+  sal y las llaves viven en `.env` (nunca se imprime).
+- `CALIDAD_Y_LINAJE.md` se versiona porque solo trae conteos. Antes del commit, revisar que siga así.
   **La sal no se cambia nunca** (`IP_HASH_SALT`): si cambia, los hashes ya no coinciden entre corridas.
 - **Nunca mezclar sintéticos y reales en el mismo MinIO.** La carga a landing lo impide; para cambiar de datos:
   `docker compose down -v` (borra el volumen) y volver a correr.
@@ -78,6 +80,15 @@ la sección "Retomar aquí" de [ROADMAP.md](ROADMAP.md). Si algo de aquí cambia
   de Plata y Oro nacen de su contrato con NOT NULL (D22). `transformation all` falla si la reconciliación no cuadra.
 - Antes de usar una API de una librería, revisar que exista en la versión instalada (`.venv`), no de memoria
   (H-005).
+- **El contrato manda (D23):** una regla de calidad, un dueño o una clasificación se cambian en
+  `governance/contracts.py`. Luego se corre `uv run python -m lakehouse.governance docs`; si no, la prueba de docs
+  falla. Los accesos de MinIO se cambian en `governance/access.py` y se regeneran igual (las políticas JSON).
+- **Usuarios de MinIO (D17):** cada comando usa `get_settings().for_role("<rol>")`; el root nunca entra al
+  contenedor del pipeline. El `.env` necesita las 5 `MINIO_SECRET_*` (README, paso 1); tras cambiarlas,
+  `docker compose up -d --force-recreate minio-init lakehouse`.
+- El código va en ASCII: los acentos de los `.md` generados van como escapes Unicode (barra, u y 4 dígitos hex) dentro de los textos.
+  La herramienta de escritura convierte `\u` en el carácter, así que hay que revisar con
+  `rg "[^\x00-\x7F]" src`.
 - **ML y BI leen solo de Oro.** Los módulos de cada rol se comunican por tablas, no por imports.
 - "Sin ejecuciones manuales" (rúbrica): schedule + sensor en Dagster. "README para replicar" (rúbrica): datos
   sintéticos + prueba desde un clon limpio en F8.

@@ -7,9 +7,11 @@ import os
 
 import pytest
 
-from lakehouse.common.config import load_settings
+from lakehouse.common.config import SERVICE_ROLES, load_settings
 
 RUN_SPARK = os.environ.get("RUN_SPARK_TESTS") == "1"
+# Contrasenas falsas de los usuarios de servicio: las pruebas nunca se conectan a MinIO.
+TEST_SECRETS = {f"MINIO_SECRET_{r.upper()}": f"secreto-de-prueba-{r}" for r in SERVICE_ROLES}
 
 
 def pytest_collection_modifyitems(config, items):
@@ -40,6 +42,9 @@ class MemoryObjectStore:
         obj = self.objects.get((bucket, key))
         return dict(obj[1]) if obj else None
 
+    def delete(self, bucket, key):
+        self.objects.pop((bucket, key), None)
+
 
 @pytest.fixture
 def store():
@@ -50,12 +55,7 @@ def store():
 def settings():
     """Settings de prueba con sal valida (nunca la del .env)."""
     return load_settings(
-        {
-            "S3_ENDPOINT": "http://localhost:9000",
-            "S3_ACCESS_KEY": "test",
-            "S3_SECRET_KEY": "test",
-            "IP_HASH_SALT": "sal-de-prueba-0123456789",
-        }
+        {"S3_ENDPOINT": "http://localhost:9000", "IP_HASH_SALT": "sal-de-prueba-0123456789", **TEST_SECRETS}
     )
 
 
@@ -65,9 +65,7 @@ def spark():
     from lakehouse.common.spark import build_spark
 
     # Llaves falsas: las pruebas escriben en disco local, nunca en MinIO.
-    settings = load_settings(
-        {"S3_ENDPOINT": "http://localhost:9000", "S3_ACCESS_KEY": "test", "S3_SECRET_KEY": "test"}
-    )
-    session = build_spark("tests", settings)
+    settings = load_settings({"S3_ENDPOINT": "http://localhost:9000", **TEST_SECRETS})
+    session = build_spark("tests", settings.for_role("transformation"))
     yield session
     session.stop()

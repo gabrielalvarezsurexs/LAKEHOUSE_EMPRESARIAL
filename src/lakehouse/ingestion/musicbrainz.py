@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Protocol
 
 from lakehouse.common.config import Settings
+from lakehouse.common.delta import ensure_table
 from lakehouse.common.errors import LakehouseError
 from lakehouse.common.log import get_logger
 from lakehouse.common.storage import ObjectStore
@@ -264,7 +265,9 @@ def build_bronze_artists(spark: SparkSession, store: ObjectStore, source: str, t
     df = spark.createDataFrame(
         [tuple(r[n] for n in names) for r in rows], BRONZE_MUSICBRAINZ_ARTISTS.spark_schema()
     )
-    df.write.format("delta").mode("overwrite").save(tables.uri(BRONZE_MUSICBRAINZ_ARTISTS))
+    uri = tables.uri(BRONZE_MUSICBRAINZ_ARTISTS)
+    ensure_table(spark, uri, BRONZE_MUSICBRAINZ_ARTISTS)
+    df.write.format("delta").mode("overwrite").save(uri)
     return len(rows)
 
 

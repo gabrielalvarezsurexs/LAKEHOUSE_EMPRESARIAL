@@ -1,6 +1,6 @@
 # Roadmap
 
-**Última actualización:** 2026-11-23 (F3 cerrada).
+**Última actualización:** 2026-11-23 (F4 cerrada).
 **Entrega:** lunes 30 de noviembre de 2026 (clase 4 pm; Blackboard 11:59 pm).
 
 Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los commits. Lo que no se puede olvidar
@@ -8,12 +8,17 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
 
 ## Retomar aquí
 
-- 2026-11-23: F3 cerrada (Plata 15,628 canciones + 50 episodios + 65 descartes = 15,743; Oro con estrella,
-  MERGE incremental y 4 marts; reconciliación 4/4 OK).
-  **Siguiente: F4 (gobernanza).** Arrancar leyendo `CLAUDE.md`, `DOCS/NO_OLVIDAR.md`, `DOCS/ARQUITECTURA.md`
-  (D17, D21, D22) y la sección F4 de abajo. Los contratos de las tres capas ya están en `governance/contracts.py`
-  (las tablas de Plata y Oro ya tienen NOT NULL y comentarios por columna; Bronce todavía no). La reconciliación
-  de `transformation/reconcile.py` sirve de base para los checks.
+- 2026-11-23: F4 cerrada.
+  - 325 checks sobre 17 tablas, 0 fallas.
+  - 5 usuarios de MinIO con mínimo privilegio, verificados en vivo (41 de 41).
+  - Catálogo, linaje y reporte generados en `ENTREGABLES/03_calidad_y_linaje/`.
+- **Siguiente: F5 (orquestación, CI, MLflow).** Arrancar leyendo `CLAUDE.md`, `DOCS/NO_OLVIDAR.md`,
+  `DOCS/ARQUITECTURA.md` (D6, D7, D17, D23) y la sección F5 de abajo. Para F5:
+  - **Assets de Dagster:** sus dependencias salen de `contract.sources` (el mismo grafo de `LINAJE.md`).
+  - **Asset checks:** envuelven `governance.quality.table_checks`.
+  - **Pasos:** cada uno corre con el usuario de su rol (`settings.for_role(...)`). Lo más simple es un proceso
+    por paso (los CLIs), porque una SparkSession no cambia de credenciales.
+  - **CI:** debe generar las `MINIO_SECRET_*` antes de `docker compose up`.
 
 ## Protocolo de cada fase
 
@@ -34,7 +39,7 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
 | F1 | Infraestructura: uv, compose, MinIO, imagen Spark+Delta, smoke | Gabriel | lun 23 | Hecha (dom 22) | `01_GABRIEL_ARQUITECTO.md` (borrador) |
 | F2 | Ingesta: landing, Bronce, MusicBrainz, sintéticos | Ricardo | lun 23 a mar 24 | Hecha (lun 23) | `02_RICARDO_INGESTA.md` |
 | F3 | Transformación: Plata y Oro | Juan Pablo | mar 24 a mié 25 | Hecha (lun 23) | `03_JUAN_PABLO_TRANSFORMACION.md` |
-| F4 | Gobernanza: contratos, calidad, catálogo, linaje, seguridad | Victor | mié 25 | Pendiente | `04_VICTOR_GOBERNANZA.md` |
+| F4 | Gobernanza: contratos, calidad, catálogo, linaje, seguridad | Victor | mié 25 | Hecha (lun 23) | `04_VICTOR_GOBERNANZA.md` |
 | F5 | Orquestación, CI/CD, monitoreo y MLflow | Nora | jue 26 | Pendiente | `07_NORA_DEVOPS.md` |
 | F6 | Modelo de ML (skip) | Fernando | jue 26 a vie 27 | Pendiente | `06_FERNANDO_ML.md` |
 | F7 | Tablero de BI | Emilio | vie 27 a sáb 28 | Pendiente | `05_EMILIO_BI.md` |
@@ -110,13 +115,33 @@ Holgura: el domingo 29 queda libre de código. Si una fase se atrasa se recorta 
 
 ## F4. Gobernanza y seguridad (Victor, mié 25)
 
-- [ ] Contratos de esquema por tabla (fuente única: `governance/contracts.py`, ya con Bronce desde F2) con
-      descripción de columnas, dueño y clasificación (PII); falta Plata y Oro.
-- [ ] Checks de calidad por capa (no nulos, únicos, valores aceptados, rangos, frescura, reconciliación).
-- [ ] Generadores de `ENTREGABLES/03_calidad_y_linaje/`: `CATALOGO.md`, linaje (Mermaid, tabla a tabla y
-      columnas clave) y `CALIDAD_Y_LINAJE.md` con los resultados de la última corrida (solo conteos).
-- [ ] Usuarios y políticas de MinIO por servicio (D17); comentarios de columna en las tablas Delta.
-- [ ] `MDS_DE_ESTUDIO/04_VICTOR_GOBERNANZA.md`.
+- [x] Contratos de las 18 tablas (`governance/contracts.py`):
+  - columnas con descripción y privacidad (`personal`, `pseudonym`);
+  - dueño, clasificación (restringido, confidencial, interno) y `sources` (linaje);
+  - llaves únicas, referencias, valores aceptados, rangos y reglas SQL (D23).
+- [x] Checks de calidad por capa (`governance/quality.py`):
+  - **Por tabla:** existe, esquema, privacidad, metadatos.
+  - **Por fila:** no nulos, valores, rangos, reglas, únicos, referencias.
+  - **Entre capas:** 7 reconciliaciones y frescura.
+- [x] Generadores de `ENTREGABLES/03_calidad_y_linaje/`:
+  - `CATALOGO.md` y `LINAJE.md`, locales y sin Spark (`governance docs`);
+  - `CALIDAD_Y_LINAJE.md` con la última corrida (`governance check`, solo conteos).
+- [x] Usuarios de MinIO por servicio (D17):
+  - `svc-ingestion`, `svc-transformation`, `svc-governance`, `svc-ml` y `svc-bi`;
+  - políticas generadas desde `governance/access.py` y aplicadas por `init.sh`;
+  - el root salió del contenedor del pipeline;
+  - prueba en vivo de accesos (`governance access`).
+- [x] Comentarios de columna y propiedades (dueño, capa, clasificación) en todas las tablas Delta: se crean o se
+      sincronizan desde el contrato al escribir (`common/delta.py`).
+- [x] Pruebas:
+  - **Locales:** contratos, políticas contra la matriz, prueba de accesos con MinIO falso, docs al día y reporte.
+  - **Con Spark:** pipeline sintético sin fallas, errores sembrados detectados y sincronización de metadatos.
+  - **Resultado local:** 188 en verde.
+- [x] Gabriel corrió con los reales (2026-11-23):
+  - `pytest`: 201 en verde en el contenedor;
+  - minio-init creó los 5 usuarios y el smoke pasó con ellos;
+  - `governance check`: 325 checks en 17 tablas, 0 fallas y 0 avisos; accesos 41 de 41.
+- [x] `MDS_DE_ESTUDIO/04_VICTOR_GOBERNANZA.md`.
 - **Listo cuando:** todos los checks corren sobre las tres capas y el reporte se regenera solo.
 
 ## F5. Orquestación, CI/CD, monitoreo y MLflow (Nora, jue 26)

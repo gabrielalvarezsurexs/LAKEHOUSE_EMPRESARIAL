@@ -50,6 +50,13 @@ con Spark), con gobernanza, un modelo de ML que lee de Oro y un tablero de BI. I
   Ayuda: `python -m lakehouse.ingestion --help`. Necesita `IP_HASH_SALT` en `.env`.
 - Transformación (F3), dentro del contenedor: `python -m lakehouse.transformation all` (Plata + Oro +
   reconciliación; falla si los conteos no cuadran). También `silver`, `gold` o `reconcile` por separado.
+- Gobernanza (F4):
+  - **Local, sin Spark:** `uv run python -m lakehouse.governance docs` regenera `CATALOGO.md`, `LINAJE.md` y
+    `infra/minio/policies/*.json`. Se corre tras tocar contratos o accesos.
+  - **En el contenedor:** `python -m lakehouse.governance check` corre los checks de las tres capas y la prueba de
+    accesos, y escribe `CALIDAD_Y_LINAJE.md`; falla si algo bloqueante no pasa. `... access` corre solo la prueba
+    de usuarios.
+- Credenciales de MinIO: cada CLI usa `get_settings().for_role("<rol>")` (D17); nunca el root.
 - Los comandos exactos de cada pieza se agregan aquí al cerrar su fase.
 
 ## Seguridad y privacidad
@@ -78,7 +85,8 @@ con Spark), con gobernanza, un modelo de ML que lee de Oro y un tablero de BI. I
 - ML y BI leen **solo de Oro**.
 - Las escrituras son idempotentes: re-correr el pipeline con los mismos archivos no duplica filas.
 - Mejor un dato vacío que uno falso: lo ausente es `null`, nunca `0` ni un default inventado.
-- Un esquema se define una sola vez (contratos de gobernanza); nada de listas de columnas repetidas.
+- Un esquema se define una sola vez (contratos de gobernanza); nada de listas de columnas repetidas. Lo mismo
+  para reglas de calidad, clasificación y linaje (D23) y para los permisos de MinIO (`governance/access.py`).
 - Local y contenedor usan el mismo `uv.lock`.
 - Ninguna carpeta de código se llama `data/` (está en `.gitignore`).
 

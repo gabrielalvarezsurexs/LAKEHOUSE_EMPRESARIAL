@@ -12,8 +12,8 @@ historial extendido de reproducciones de Spotify:
 - **BI:** tablero en Apache Superset sobre la capa Oro.
 - **Dependencias:** uv (Python 3.11) en local; Docker Compose para los servicios.
 
-> **Estado (2026-11-23):** en construcción. Infraestructura (F1), ingesta (F2) y transformación (F3) listas; sigue
-> gobernanza (F4). Avance en
+> **Estado (2026-11-23):** en construcción. Infraestructura (F1), ingesta (F2), transformación (F3) y gobernanza
+> (F4) listas; sigue orquestación (F5). Avance en
 > [DOCS/ROADMAP.md](DOCS/ROADMAP.md). Entrega: 30 de noviembre de 2026.
 
 ## Estructura
@@ -41,12 +41,16 @@ Copy-Item .env.example .env          # luego cambia la contraseña de MinIO en .
 # Sal para seudonimizar IPs (se agrega a .env sin imprimirse):
 $b = New-Object byte[] 24; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
 Add-Content .env ("IP_HASH_SALT=" + (-join ($b | ForEach-Object { $_.ToString('x2') })))
+# Contraseñas de los 5 usuarios de servicio de MinIO (una sola vez):
+foreach ($r in 'INGESTION','TRANSFORMATION','GOVERNANCE','ML','BI') {
+  $b = New-Object byte[] 24; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+  Add-Content .env ("MINIO_SECRET_$r=" + (-join ($b | ForEach-Object { $_.ToString('x2') }))) }
 docker compose up -d --build         # la primera vez tarda (baja Java, PySpark y los JARs)
 docker compose exec lakehouse python -m lakehouse.common.smoke
 ```
 
 El smoke debe terminar con `Smoke OK`. Consola de MinIO: <http://localhost:9001> (usuario y contraseña del `.env`),
-con los buckets `landing`, `bronze`, `silver` y `gold`.
+con los buckets `landing`, `bronze`, `silver` y `gold`, y los usuarios `svc-*` de cada servicio (permisos mínimos).
 
 ### 2. Ingesta (landing > Bronce + géneros)
 
@@ -71,7 +75,18 @@ Limpia y enriquece en Plata, arma el modelo estrella y los KPIs en Oro, y reconc
 (termina con cuatro líneas `[OK]`; si algo no cuadra, el comando falla). Re-correrlo no escribe filas nuevas en
 `fact_plays` (MERGE incremental).
 
-### 4. Pruebas
+### 4. Gobernanza (calidad, accesos, catálogo y linaje)
+
+```powershell
+docker compose exec lakehouse python -m lakehouse.governance check
+```
+
+Corre los checks de calidad sobre Bronce, Plata y Oro, prueba los permisos de cada usuario de MinIO y escribe
+[`ENTREGABLES/03_calidad_y_linaje/CALIDAD_Y_LINAJE.md`](ENTREGABLES/03_calidad_y_linaje/CALIDAD_Y_LINAJE.md)
+(solo conteos). El catálogo y el linaje se generan desde los contratos con
+`uv run python -m lakehouse.governance docs`.
+
+### 5. Pruebas
 
 ```powershell
 uv sync                              # instala Python 3.11 y las dependencias del uv.lock

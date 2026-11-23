@@ -1,11 +1,12 @@
 """Configuracion del lakehouse leida de variables de entorno (el .env lo inyecta docker compose).
 
+Cada proceso trabaja con el usuario de MinIO de su rol (D17): settings.for_role("ingestion"), etc.
 Responsable: Gabriel Alvarez Mendoza (Arquitecto de Datos / Lider)
 """
 
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from urllib.parse import urlparse
 
@@ -14,7 +15,23 @@ from lakehouse.common.errors import ConfigError
 # Un bucket por capa (D3). infra/minio/init.sh crea los mismos; el smoke verifica que coincidan.
 LAYERS: tuple[str, ...] = ("landing", "bronze", "silver", "gold")
 MIN_SALT_LENGTH = 16
+MIN_SECRET_LENGTH = 8  # MinIO no acepta contrasenas mas cortas
 DEFAULT_MUSICBRAINZ_USER_AGENT = "lakehouse-escolar/0.1 (proyecto academico de datos)"
+
+# Usuarios de servicio de MinIO (D17). Sus permisos: governance/access.py; los crea infra/minio/init.sh.
+SERVICE_ROLES: tuple[str, ...] = ("ingestion", "transformation", "governance", "ml", "bi")
+
+
+def service_user(role: str) -> str:
+    """Usuario de MinIO del rol, p. ej. svc-ingestion."""
+    if role not in SERVICE_ROLES:
+        raise ConfigError(f"Rol desconocido '{role}'. Validos: {', '.join(SERVICE_ROLES)}")
+    return f"svc-{role}"
+
+
+def secret_env_var(role: str) -> str:
+    """Variable con la contrasena del rol, igual en .env, compose e init.sh: p. ej. MINIO_SECRET_INGESTION."""
+    return f"MINIO_SECRET_{role.upper()}"
 
 
 @dataclass(frozen=True)
@@ -22,8 +39,11 @@ class Settings:
     """Valores de entorno ya validados; las llaves no salen en repr ni en logs."""
 
     s3_endpoint: str
-    s3_access_key: str = field(repr=False)
-    s3_secret_key: str = field(repr=False)
+    # Credenciales activas: vacias hasta elegir rol con for_role().
+    s3_access_key: str = field(default="", repr=False)
+    s3_secret_key: str = field(default="", repr=False)
+    role: str = ""
+    service_secrets: Mapping[str, str] = field(default_factory=dict, repr=False, hash=False, compare=False)
     spark_master: str = "local[*]"
     spark_driver_memory: str = "4g"
     # Sal para seudonimizar ip_addr (D8). Opcional aqui; la ingesta exige que exista y sea larga.
@@ -31,6 +51,23 @@ class Settings:
     spotify_source_dir: str = "/datos_spotify"
     # Generico a proposito: sin nombres, correos ni URLs personales (regla de privacidad).
     musicbrainz_user_agent: str = DEFAULT_MUSICBRAINZ_USER_AGENT
+
+    def for_role(self, role: str) -> "Settings":
+        """Copia con las credenciales del usuario de servicio del rol; falla si falta su contrasena."""
+        user = service_user(role)
+        secret = self.service_secrets.get(role, "")
+        if len(secret) < MIN_SECRET_LENGTH:
+            raise ConfigError(
+                f"Falta {secret_env_var(role)} (contrasena de {user}, minimo {MIN_SECRET_LENGTH} caracteres) "
+                "en tu .env (README, paso 1)."
+            )
+        return replace(self, s3_access_key=user, s3_secret_key=secret, role=role)
+
+    def require_credentials(self) -> None:
+        if not (self.s3_access_key and self.s3_secret_key):
+            raise ConfigError(
+                "Settings sin rol de MinIO: usa settings.for_role('<rol>') antes de conectarte."
+            )
 
     def require_ip_salt(self) -> str:
         """Devuelve la sal de IP o falla si no hay una suficientemente larga."""
@@ -72,10 +109,10 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     parsed = urlparse(endpoint)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise ConfigError(f"S3_ENDPOINT debe ser una URL http(s)://host:puerto, no '{endpoint}'")
+    secrets = {r: env.get(secret_env_var(r), "").strip() for r in SERVICE_ROLES}
     return Settings(
         s3_endpoint=endpoint.rstrip("/"),
-        s3_access_key=_require(env, "S3_ACCESS_KEY"),
-        s3_secret_key=_require(env, "S3_SECRET_KEY"),
+        service_secrets={r: s for r, s in secrets.items() if s},
         spark_master=env.get("SPARK_MASTER", "").strip() or "local[*]",
         spark_driver_memory=env.get("SPARK_DRIVER_MEMORY", "").strip() or "4g",
         ip_hash_salt=env.get("IP_HASH_SALT", "").strip(),

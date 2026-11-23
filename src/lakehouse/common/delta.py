@@ -58,19 +58,55 @@ def read_optional(spark: SparkSession, locator: TableLocator, contract: TableCon
     return spark.read.format("delta").load(uri) if is_delta(spark, uri) else None
 
 
-def ensure_table(spark: SparkSession, uri: str, contract: TableContract) -> None:
-    """Crea la tabla vacia con el esquema del contrato (NOT NULL y comentarios) si aun no existe."""
+def ensure_table(spark: SparkSession, uri: str, contract: TableContract) -> int:
+    """Crea la tabla con el esquema del contrato (NOT NULL, comentarios, propiedades) o alinea sus metadatos.
+
+    Regresa cuantos cambios de metadatos aplico a una tabla existente (0 = ya estaba al dia, sin commit).
+    """
     from delta.tables import DeltaTable
 
     if is_delta(spark, uri):
-        return
+        return sync_metadata(spark, uri, contract)
     builder = DeltaTable.createIfNotExists(spark).location(uri).comment(contract.description)
     for col in contract.columns:
         # API de Python: addColumn(nombre, tipo DDL, nullable, comment=...); no hay columnBuilder.
         builder = builder.addColumn(col.name, col.dtype, nullable=col.nullable, comment=col.description)
+    for key, value in contract.table_properties().items():
+        builder = builder.property(key, value)
     if contract.partition_by:
         builder = builder.partitionedBy(*contract.partition_by)
     builder.execute()
+    return 0
+
+
+def _sql_str(value: str) -> str:
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def sync_metadata(spark: SparkSession, uri: str, contract: TableContract) -> int:
+    """Pone descripcion, propiedades y comentarios de columna del contrato en una tabla que ya existe.
+
+    Solo toca lo que difiere, asi re-correr no crea versiones nuevas. No cambia tipos ni nulos.
+    """
+    from delta.tables import DeltaTable
+
+    table = f"delta.`{uri}`"
+    detail = DeltaTable.forPath(spark, uri).detail().first()
+    current_props = detail["properties"] or {}
+    props = {k: v for k, v in contract.table_properties().items() if current_props.get(k) != v}
+    if (detail["description"] or "") != contract.description:
+        props["comment"] = contract.description
+    changes = 0
+    if props:
+        pairs = ", ".join(f"{_sql_str(k)} = {_sql_str(v)}" for k, v in props.items())
+        spark.sql(f"ALTER TABLE {table} SET TBLPROPERTIES ({pairs})")
+        changes += 1
+    comments = {f.name: f.metadata.get("comment") for f in spark.read.format("delta").load(uri).schema.fields}
+    for col in contract.columns:
+        if col.name in comments and comments[col.name] != col.description:
+            spark.sql(f"ALTER TABLE {table} ALTER COLUMN `{col.name}` COMMENT {_sql_str(col.description)}")
+            changes += 1
+    return changes
 
 
 def overwrite(spark: SparkSession, df: DataFrame, locator: TableLocator, contract: TableContract) -> None:

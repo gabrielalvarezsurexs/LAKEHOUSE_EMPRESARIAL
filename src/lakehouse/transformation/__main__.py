@@ -30,7 +30,8 @@ def run(steps: list[str]) -> None:
     from lakehouse.transformation.reconcile import ReconciliationError, reconcile
     from lakehouse.transformation.silver import build_silver
 
-    settings = get_settings()
+    # svc-transformation: lee bronze, escribe silver y gold (D17).
+    settings = get_settings().for_role("transformation")
     locator = TableLocator.from_settings(settings)
     spark = build_spark("transformation", settings)
     try:

@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from lakehouse.common.config import Settings
+from lakehouse.common.delta import ensure_table
 from lakehouse.common.log import get_logger
 from lakehouse.common.storage import ObjectStore
 from lakehouse.governance.contracts import (
@@ -165,6 +166,9 @@ def ingest_bronze(
     """Procesa los archivos de landing/spotify que aun no estan en la bitacora (todos con force=True)."""
     salt = settings.require_ip_salt()
     tables = tables or BronzeTables.from_settings(settings)
+    for contract in (BRONZE_SPOTIFY_STREAMS, BRONZE_QUARANTINE, BRONZE_INGESTION_LOG):
+        # Crea desde el contrato (NOT NULL, comentarios) o alinea los metadatos de una tabla vieja (F4).
+        ensure_table(spark, tables.uri(contract), contract)
     now = datetime.now(UTC)
     batch = {"_batch_id": new_batch_id(now), "_ingested_at": now}
     done = set() if force else ingested_hashes(spark, tables)

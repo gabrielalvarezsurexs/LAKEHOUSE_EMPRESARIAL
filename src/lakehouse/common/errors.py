@@ -16,6 +16,10 @@ class StorageError(LakehouseError):
     """MinIO no responde o falta un bucket esperado."""
 
 
+class AccessDeniedError(StorageError):
+    """MinIO nego la operacion: el usuario de servicio no tiene permiso (D17)."""
+
+
 class SchemaError(LakehouseError):
     """Un DataFrame o una tabla no cumple su contrato de esquema."""
 

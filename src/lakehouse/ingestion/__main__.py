@@ -14,6 +14,7 @@ from lakehouse.common.errors import LakehouseError
 from lakehouse.common.log import get_logger
 
 log = get_logger("lakehouse.ingestion")
+ROLE = "ingestion"  # usuario de MinIO svc-ingestion: escribe landing y bronze (D17)
 
 
 def _synthetic(args: argparse.Namespace) -> None:
@@ -27,7 +28,7 @@ def _landing(args: argparse.Namespace) -> None:
     from lakehouse.common.storage import S3ObjectStore
     from lakehouse.ingestion.landing import upload_spotify_files
 
-    settings = get_settings()
+    settings = get_settings().for_role(ROLE)
     result = upload_spotify_files(S3ObjectStore(settings), args.source_dir or settings.spotify_source_dir)
     log.info("Landing: subidos=%d, ya estaban=%d", len(result.uploaded), len(result.skipped))
 
@@ -37,7 +38,7 @@ def _with_spark(args: argparse.Namespace, steps: list[str]) -> None:
     from lakehouse.common.storage import S3ObjectStore
     from lakehouse.ingestion.bronze import BronzeTables, ingest_bronze, table_counts
 
-    settings = get_settings()
+    settings = get_settings().for_role(ROLE)
     store, tables = S3ObjectStore(settings), BronzeTables.from_settings(settings)
     spark = build_spark("ingestion", settings)
     try:

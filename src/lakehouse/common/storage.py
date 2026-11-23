@@ -6,10 +6,13 @@ Responsable: Gabriel Alvarez Mendoza (Arquitecto de Datos / Lider)
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Protocol
+from typing import NoReturn, Protocol
 
-from lakehouse.common.config import Settings, get_settings
-from lakehouse.common.errors import StorageError
+from lakehouse.common.config import Settings
+from lakehouse.common.errors import AccessDeniedError, StorageError
+
+_DENIED_CODES = ("AccessDenied", "403")
+_MISSING_CODES = ("404", "NoSuchKey", "NotFound")
 
 
 class ObjectStore(Protocol):
@@ -28,14 +31,28 @@ class ObjectStore(Protocol):
         ...
 
 
-class S3ObjectStore:
-    """ObjectStore sobre boto3 apuntando a MinIO (path style, reintentos estandar)."""
+def _error_code(exc: Exception) -> str:
+    response = getattr(exc, "response", None) or {}
+    return str(response.get("Error", {}).get("Code", ""))
 
-    def __init__(self, settings: Settings | None = None):
+
+def _fail(action: str, bucket: str, key: str, exc: Exception) -> NoReturn:
+    """AccessDeniedError si MinIO nego el permiso (D17); StorageError en cualquier otro caso."""
+    where = f"s3://{bucket}/{key}"
+    if _error_code(exc) in _DENIED_CODES:
+        raise AccessDeniedError(f"Permiso negado al {action} {where}") from exc
+    raise StorageError(f"No pude {action} {where}: {exc}") from exc
+
+
+class S3ObjectStore:
+    """ObjectStore sobre boto3 apuntando a MinIO con el usuario del rol (path style, reintentos estandar)."""
+
+    def __init__(self, settings: Settings):
         import boto3
         from botocore.config import Config
 
-        settings = settings or get_settings()
+        settings.require_credentials()
+        self.role = settings.role
         self._client = boto3.client(
             "s3",
             endpoint_url=settings.s3_endpoint,
@@ -53,27 +70,31 @@ class S3ObjectStore:
         try:
             self._client.put_object(Bucket=bucket, Key=key, Body=data, Metadata=dict(metadata or {}))
         except Exception as exc:
-            raise StorageError(f"No pude escribir s3://{bucket}/{key}: {exc}") from exc
+            _fail("escribir", bucket, key, exc)
 
     def get_bytes(self, bucket, key):
         try:
             return self._client.get_object(Bucket=bucket, Key=key)["Body"].read()
         except Exception as exc:
-            raise StorageError(f"No pude leer s3://{bucket}/{key}: {exc}") from exc
+            _fail("leer", bucket, key, exc)
+
+    def delete(self, bucket: str, key: str) -> None:
+        try:
+            self._client.delete_object(Bucket=bucket, Key=key)
+        except Exception as exc:
+            _fail("borrar", bucket, key, exc)
 
     def list_keys(self, bucket, prefix=""):
         try:
             pages = self._client.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=prefix)
             return sorted(obj["Key"] for page in pages for obj in page.get("Contents", []))
         except Exception as exc:
-            raise StorageError(f"No pude listar s3://{bucket}/{prefix}: {exc}") from exc
+            _fail("listar", bucket, prefix, exc)
 
     def get_metadata(self, bucket, key):
-        from botocore.exceptions import ClientError
-
         try:
             return dict(self._client.head_object(Bucket=bucket, Key=key).get("Metadata", {}))
-        except ClientError as exc:
-            if exc.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
+        except Exception as exc:
+            if _error_code(exc) in _MISSING_CODES:
                 return None
-            raise StorageError(f"No pude revisar s3://{bucket}/{key}: {exc}") from exc
+            _fail("revisar", bucket, key, exc)
