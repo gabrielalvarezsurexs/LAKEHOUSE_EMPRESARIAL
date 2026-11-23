@@ -8,7 +8,7 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
 
 ## Retomar aquí
 
-- 2026-11-23: F2 cerrada (Bronce 15,743 / 0 cuarentena, idempotente; géneros para 1,098 de 1,301 artistas).
+- 2026-11-23: F2 cerrada (Bronce 15,743 / 0 cuarentena, idempotente; géneros para 1,099 de 1,301 artistas).
   **Siguiente: F3 (transformación).** Arrancar leyendo `CLAUDE.md`, `DOCS/NO_OLVIDAR.md`, `DOCS/DATOS_FUENTE.md`
   (§1.3 reglas de Plata, H-003) y la sección F3 de abajo. Las tablas de Bronce y su esquema están en
   `governance/contracts.py`.
@@ -83,8 +83,8 @@ Holgura: el domingo 29 queda libre de código. Si una fase se atrasa se recorta 
       con respuestas grabadas (sin red). Local: 63 en verde; validación local de los reales: 15,743 / 0.
 - [x] Gabriel corrió la ingesta real (2026-11-23): `pytest` 66 en verde en el contenedor; Bronce 15,743 filas,
       0 en cuarentena, bitácora 2; segunda corrida `ya ingeridos=2` con los mismos totales. MusicBrainz: 1,301
-      artistas, 1,098 con match (84%), 5 errores tras reintentos (se piden al re-correr `genres`); ~55 min por los
-      503 frecuentes de la API.
+      artistas en Bronce, 1,099 con match (84%); los 5 que fallaron por 503 entraron al re-correr `genres`. ~55 min
+      por los 503 frecuentes de la API. Logs de Spark sin avisos benignos (`infra/app/spark-conf/`).
 - [x] `MDS_DE_ESTUDIO/02_RICARDO_INGESTA.md`.
 - **Listo cuando:** filas en Bronce = 15,743 (filas de los JSON) con 0 en cuarentena, y re-correr no cambia conteos.
 

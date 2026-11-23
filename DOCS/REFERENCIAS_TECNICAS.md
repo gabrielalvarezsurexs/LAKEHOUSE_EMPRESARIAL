@@ -24,6 +24,9 @@ Windows 11, 31 GB RAM, 24 hilos, Docker 29.5 + Compose 5.1 (el daemon se prende 
   `build`). No canalizar a `Select-Object -Last`: no imprime nada hasta terminar.
 - Avisos normales del smoke (no son errores): `NativeCodeLoader`, `MetricsConfig` de S3A y
   `DeltaHistoryManager ... timestamp greater than` (dos commits en el mismo segundo; Delta ajusta el orden).
+  Desde F2 los dos primeros se callan en `infra/app/spark-conf/log4j2.properties` (montado con
+  `SPARK_CONF_DIR`), y `SparkStringUtils: Truncated the string representation` con
+  `spark.sql.debug.maxToStringFields=200`. Con log4j2 propio tampoco sale "Setting default log level".
 - ¿Por qué Java? Spark es un motor de la JVM; PySpark solo lo controla desde Python. La alternativa sin Java
   (delta-rs + Polars/DuckDB) se descartó porque el curso usa Spark.
 - Superset es imagen aparte (no comparte el lock): solo agrega `duckdb-engine` con versión fijada.
@@ -106,8 +109,6 @@ Windows 11, 31 GB RAM, 24 hilos, Docker 29.5 + Compose 5.1 (el daemon se prende 
   4xx no se reintentan. Los errores no se cachean, así que la siguiente corrida los vuelve a pedir.
 - En la práctica la API responde 503 en ~1 de cada 10 peticiones aun a 1 req/s; los reintentos van a nivel
   DEBUG y el resumen final trae `reintentos=N`. Para verlos uno por uno: `LOG_LEVEL=DEBUG`.
-- Aviso normal de Spark en la ingesta: `SparkStringUtils: Truncated the string representation of a plan` (el
-  esquema tiene muchas columnas; no afecta los datos).
 - Fuentes: [API](https://musicbrainz.org/doc/MusicBrainz_API), [Rate limiting](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting).
 
 ## Spotify Web API (plan B, no se usa)

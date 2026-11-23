@@ -70,8 +70,8 @@ El historial no trae géneros. Se agregan por artista con **MusicBrainz** (grati
 - Límite: ~1 petición por segundo y User-Agent obligatorio (genérico, configurable en `.env`, sin datos
   personales). Son 2 peticiones por artista con match (búsqueda + géneros) y 1 sin match: para 1,301 artistas,
   **~55 min una sola vez** (medido el 2026-11-23: la API responde 503 seguido y el cliente reintenta). Resultado:
-  1,098 de 1,301 artistas con match confiable (84%). Las respuestas crudas se guardan en `landing/musicbrainz/api/` y las corridas
-  siguientes solo piden los artistas nuevos (si se corta, se re-corre y sigue donde iba).
+  1,099 de 1,301 artistas con match confiable (84%). Las respuestas crudas se guardan en
+  `landing/musicbrainz/api/` y las corridas siguientes solo piden los artistas nuevos (si se corta, se re-corre y sigue donde iba).
 - **Spotify Web API descartada como fuente principal:** desde febrero de 2026 el modo desarrollo exige Premium,
   limita usuarios y quitó `popularity` y `followers` de artistas; `genres` no está quitado oficialmente pero se
   reporta vacío o en desuso. Queda como plan B documentado, no se implementa salvo que MusicBrainz cubra muy poco.

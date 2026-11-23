@@ -38,6 +38,8 @@ def spark_conf(settings: Settings) -> dict[str, str]:
         # Con decenas de miles de filas, 200 particiones de shuffle solo agregan overhead.
         "spark.sql.shuffle.partitions": "8",
         "spark.ui.showConsoleProgress": "false",
+        # Bronce tiene ~28 columnas; con el tope de 25 Spark avisa que trunca el plan en cada corrida.
+        "spark.sql.debug.maxToStringFields": "200",
     }
 
 

@@ -52,6 +52,8 @@ services:
       SPARK_DRIVER_MEMORY: ${SPARK_DRIVER_MEMORY:-4g}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       RUN_SPARK_TESTS: "1"
+      # log4j2.properties de infra/app/spark-conf: menos ruido en la consola de Spark.
+      SPARK_CONF_DIR: /opt/spark-conf
       # Ingesta (F2): la sal la valida el codigo (falla con mensaje claro si falta o es corta).
       IP_HASH_SALT: ${IP_HASH_SALT:-}
       SPOTIFY_SOURCE_DIR: /datos_spotify
@@ -62,6 +64,7 @@ services:
       # Codigo montado: los cambios se ven sin reconstruir la imagen (solo si cambia uv.lock).
       - ./src:/app/src:ro
       - ./tests:/app/tests:ro
+      - ./infra/app/spark-conf:/opt/spark-conf:ro
       # Datos reales de Spotify, solo lectura (F2). Nunca se copian a la imagen.
       - ${SPOTIFY_DATA_DIR:-./DATOS_SPOTIFY}:/datos_spotify:ro
     depends_on:
