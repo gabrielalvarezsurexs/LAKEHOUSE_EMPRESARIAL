@@ -1,7 +1,7 @@
 # Arquitectura y decisiones
 
 Diseño del lakehouse. Las decisiones llevan id (`D1`, `D2`...) para citarlas en código y docs. El diagrama final
-(entregable 1) vive en `ENTREGABLES/diagramas/`; este es el borrador de trabajo.
+(entregable 1) vive en `ENTREGABLES/01_diagrama_arquitectura/`; este es el borrador de trabajo.
 
 ## 1. Vista general
 
@@ -56,6 +56,30 @@ flowchart LR
 | D15 | Ingesta idempotente por hash SHA-256 de archivo + bitácora de ingesta | Re-correr no duplica; registro auditable | Sobrescribir todo cada vez |
 | D16 | Registros malformados a **cuarentena** con causa, no se tiran ni rompen la corrida | Manejo de errores (rúbrica) y reconciliación de conteos | Fallar toda la corrida |
 | D17 | Usuarios de MinIO por servicio con políticas mínimas (ingesta, transformación, BI solo lectura de `gold`) | Seguridad demostrable para Gobernanza | Usar el root en todo |
+| D18 | **uv** para todo lo local (`pyproject.toml` + `uv.lock` versionados, Python 3.11); la imagen Docker instala con `uv sync --frozen` del mismo lock | Un solo manejador y versiones idénticas en local, contenedor y CI | pip/requirements por separado |
+| D19 | **Código en la raíz**; `ENTREGABLES/` solo con lo que se entrega y no es código, numerado como el PDF | El revisor encuentra cada entregable sin buscar; el código queda como un proyecto Python normal | Todo dentro de `ENTREGABLES/` |
+
+## 2.1 Estructura del repo
+
+```text
+/                         README (cómo replicar), CLAUDE.md, pyproject.toml, uv.lock, .python-version,
+                          .env.example, docker-compose.yml
+src/lakehouse/
+  common/                 config, SparkSession, logging, errores           (Gabriel)
+  ingestion/              landing, Bronce, MusicBrainz, sintéticos          (Ricardo)
+  transformation/         Plata y Oro                                       (Juan Pablo)
+  governance/             contratos, calidad, catálogo, linaje, seudónimos  (Victor)
+  ml/                     features, entrenamiento, inferencia               (Fernando)
+  orchestration/          Dagster: assets, checks, schedules, sensores, monitoreo (Nora)
+infra/                    app/ (Dockerfile), minio/ (buckets y políticas), superset/
+bi/                       vistas SQL sobre Oro y export del tablero         (Emilio)
+notebooks/                presentación del modelo                           (Fernando)
+tests/                    espejo de src/lakehouse/
+.github/                  workflows/ (Nora), CODEOWNERS (Gabriel)
+ENTREGABLES/              01_diagrama_arquitectura/ 02_infraestructura/ 03_calidad_y_linaje/
+                          04_modelo_ml/ 05_tablero_bi/ 06_video/ y README.md (índice contra la rúbrica)
+DOCS/  MDS_DE_ESTUDIO/    docs de trabajo y guías por integrante
+```
 
 ## 3. Tablas por capa (borrador; se cierra en F2 a F4)
 

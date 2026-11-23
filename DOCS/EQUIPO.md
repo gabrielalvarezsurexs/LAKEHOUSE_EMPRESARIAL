@@ -16,14 +16,15 @@ estudia y presenta su parte con su guía de `MDS_DE_ESTUDIO/`. Todos los commits
 
 ## Qué le toca a cada quien en el repo
 
-Rutas relativas a `ENTREGABLES/` salvo que se diga otra cosa. Se confirman al implementar cada fase.
+Código en la raíz; lo que no es código va en `ENTREGABLES/`. Se confirma al implementar cada fase.
 
-| Integrante | Carpetas y archivos | Entregable del PDF |
-|---|---|---|
-| Gabriel (Arquitecto) | `docker-compose.yml`, `.env.example`, `infra/app/`, `infra/minio/` (buckets), `src/lakehouse/common/`, `diagramas/`, `README.md` (raíz y de `ENTREGABLES/`), `.github/CODEOWNERS` | 1 Diagrama, 2 Infraestructura |
-| Ricardo (Ingesta) | `src/lakehouse/ingestion/` (landing, Bronce, MusicBrainz, generador sintético) | Pipelines de ingesta |
-| Juan Pablo (Transformación) | `src/lakehouse/transformation/` (Plata y Oro, SQL de Spark) | Pipelines de transformación |
-| Victor (Gobernanza) | `src/lakehouse/governance/` (contratos, calidad, catálogo, linaje, seudonimización), `infra/minio/policies/`, `reportes/CALIDAD_Y_LINAJE.md`, `reportes/CATALOGO.md` | 3 Reporte de calidad y linaje |
-| Emilio (BI) | `bi/` (Superset, vistas SQL de Oro, tablero exportado, capturas) | 5 Tablero de BI |
-| Fernando (ML) | `src/lakehouse/ml/`, `notebooks/`, `reportes/ML_METRICAS.md` | 4 Código del modelo |
-| Nora (DevOps/MLOps) | `orchestration/` (Dagster: jobs, schedules, sensores, checks), `monitoring/`, `.github/workflows/` (raíz) | Orquestación, CI/CD, monitoreo |
+| Integrante | Código (raíz) | En `ENTREGABLES/` | Entregable del PDF |
+|---|---|---|---|
+| Gabriel (Arquitecto) | `docker-compose.yml`, `.env.example`, `pyproject.toml`, `infra/app/`, `infra/minio/` (buckets), `src/lakehouse/common/`, `README.md`, `.github/CODEOWNERS` | `01_diagrama_arquitectura/`, `02_infraestructura/`, `README.md` | 1 Diagrama, 2 Infraestructura |
+| Ricardo (Ingesta) | `src/lakehouse/ingestion/` (landing, Bronce, MusicBrainz, generador sintético) | | Pipelines de ingesta |
+| Juan Pablo (Transformación) | `src/lakehouse/transformation/` (Plata y Oro, SQL de Spark) | | Pipelines de transformación |
+| Victor (Gobernanza) | `src/lakehouse/governance/` (contratos, calidad, catálogo, linaje, seudonimización), `infra/minio/policies/` | `03_calidad_y_linaje/` (reporte, catálogo, linaje) | 3 Reporte de calidad y linaje |
+| Emilio (BI) | `bi/` (Superset, vistas SQL sobre Oro, export del tablero), `infra/superset/` | `05_tablero_bi/` (capturas, export, cómo abrirlo) | 5 Tablero de BI |
+| Fernando (ML) | `src/lakehouse/ml/`, `notebooks/` | `04_modelo_ml/` (métricas y gráficas) | 4 Código del modelo |
+| Nora (DevOps/MLOps) | `src/lakehouse/orchestration/` (Dagster: jobs, schedules, sensores, checks, monitoreo), `.github/workflows/`, MLflow en el compose | | Orquestación, CI/CD, monitoreo |
+| Todos | | `06_video/` (link) | Video |

@@ -13,6 +13,7 @@ su fase queda implementada (ver [DOCS/ROADMAP.md](../DOCS/ROADMAP.md)). Corta y 
 | `06_FERNANDO_ML.md` | Fernando Peña Meade | Ingeniero de ML |
 | `07_NORA_DEVOPS.md` | Nora Valentina Frías Alpízar | Ingeniera DevOps / MLOps |
 | `00_GUION_VIDEO.md` | Todos | Guion del video (10 min) |
+| `PAQUETE_EQUIPO.md` | Gabriel | Qué mandarle a cada quien y en qué orden (F10) |
 
 ## Plantilla (cada guía sigue estas secciones, sin pasarse de ~1 página y media)
 

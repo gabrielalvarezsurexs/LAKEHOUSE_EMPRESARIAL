@@ -8,6 +8,17 @@ la imagen y se actualizan aquí.
 Windows 11, 31 GB RAM, 24 hilos, Docker 29.5 + Compose 5.1 (el daemon se prende a mano), Python 3.14 local, uv
 0.11, Java 11 local (no se usa: Spark corre en contenedor).
 
+## uv (dependencias)
+
+- Proyecto con `pyproject.toml` (layout `src/`) y `uv.lock` versionados; `.python-version` = 3.11 (uv baja ese
+  Python solo, sin tocar el 3.14 de la máquina).
+- Grupos de dependencias para no cargar todo en todos lados: base (pyspark, delta-spark, dagster), `ml`
+  (scikit-learn, mlflow), `dev` (pytest, ruff). Se agregan con `uv add <pkg>` / `uv add --group dev <pkg>`.
+- Comandos: `uv sync`, `uv run pytest`, `uv run ruff check .`, `uv run python -m lakehouse.<modulo>`.
+- Dockerfile: copia `pyproject.toml` y `uv.lock`, corre `uv sync --frozen --no-dev` (capa cacheada), luego copia
+  `src/`. La imagen oficial de uv se toma con `COPY --from=ghcr.io/astral-sh/uv:<tag fijado> /uv /bin/`.
+- Superset es imagen aparte (no comparte el lock): solo agrega `duckdb-engine` con versión fijada.
+
 ## MinIO
 
 - En oct 2025 MinIO dejó de publicar imágenes comunitarias en Docker Hub (`docker pull minio/minio` falla) y el
