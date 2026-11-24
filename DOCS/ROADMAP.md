@@ -1,6 +1,6 @@
 # Roadmap
 
-**Última actualización:** 2026-11-23 (F5 cerrada; falta CI en verde tras el push).
+**Última actualización:** 2026-11-23 (F5 cerrada con CI en verde; sigue F6).
 **Entrega:** lunes 30 de noviembre de 2026 (clase 4 pm; Blackboard 11:59 pm).
 
 Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los commits. Lo que no se puede olvidar
@@ -12,8 +12,7 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
   - 325 checks sobre 17 tablas, 0 fallas.
   - 5 usuarios de MinIO con mínimo privilegio, verificados en vivo (41 de 41).
   - Catálogo, linaje y reporte generados en `ENTREGABLES/03_calidad_y_linaje/`.
-- 2026-11-23: **F5 cerrada. Falta que Gabriel haga commit y push, y revisar que CI pase en verde.** Después
-  sigue F6 (ML, Fernando).
+- 2026-11-23: **F5 cerrada y CI en verde. Sigue F6 (ML, Fernando): arrancar por sus casillas abajo.**
   - **Código:**
     - `src/lakehouse/orchestration/`: `steps`, `assets`, `checks`, `automation`, `health`, `definitions` y
       `__main__` (`run`, `health`, `status`).
@@ -50,9 +49,8 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
     - guía `MDS_DE_ESTUDIO/07_NORA_DEVOPS.md`;
     - ARQUITECTURA (D24 y servicios) y HALLAZGOS (H-007, H-008, H-009);
     - RUBRICA, NO_OLVIDAR, REFERENCIAS_TECNICAS, README (paso 5), CLAUDE.md y `ENTREGABLES/`.
-  - **Falta:**
-    - commit y push;
-    - CI en verde en GitHub: si falla, se revisan los logs del job `pipeline`.
+  - **CI:** los dos primeros runs fallaron porque `setup-uv@v10` no existe (H-010). Con `setup-uv@v10.4.0`,
+    el run #3 (commit `0ea42c0`) pasó en verde los dos jobs en 12 min 13 s.
 
 ## Protocolo de cada fase
 
@@ -74,7 +72,7 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
 | F2 | Ingesta: landing, Bronce, MusicBrainz, sintéticos | Ricardo | lun 23 a mar 24 | Hecha (lun 23) | `02_RICARDO_INGESTA.md` |
 | F3 | Transformación: Plata y Oro | Juan Pablo | mar 24 a mié 25 | Hecha (lun 23) | `03_JUAN_PABLO_TRANSFORMACION.md` |
 | F4 | Gobernanza: contratos, calidad, catálogo, linaje, seguridad | Victor | mié 25 | Hecha (lun 23) | `04_VICTOR_GOBERNANZA.md` |
-| F5 | Orquestación, CI/CD, monitoreo y MLflow | Nora | jue 26 | Hecha (lun 23; falta CI en verde) | `07_NORA_DEVOPS.md` |
+| F5 | Orquestación, CI/CD, monitoreo y MLflow | Nora | jue 26 | Hecha (lun 23, CI en verde) | `07_NORA_DEVOPS.md` |
 | F6 | Modelo de ML (skip) | Fernando | jue 26 a vie 27 | Pendiente | `06_FERNANDO_ML.md` |
 | F7 | Tablero de BI | Emilio | vie 27 a sáb 28 | Pendiente | `05_EMILIO_BI.md` |
 | F8 | Cierre técnico: README, ENTREGABLES, diagrama final, prueba de réplica | Gabriel | sáb 28 | Pendiente | `01_GABRIEL_ARQUITECTO.md` (final) |
@@ -183,8 +181,8 @@ Holgura: el domingo 29 queda libre de código. Si una fase se atrasa se recorta 
 - [x] `src/lakehouse/orchestration/`: un asset de Dagster por tabla, asset checks de F4, job completo, schedule
       diario y sensor sobre landing.
 - [x] Monitoreo: asset de salud (tamaño por bucket, versiones Delta, frescura, conteos) y alertas en logs.
-- [ ] `.github/workflows/`: `uv sync`, ruff, pytest y pipeline completo con datos sintéticos contra MinIO como
-      servicio. Ya está escrito; falta verlo en verde en GitHub después del push.
+- [x] `.github/workflows/`: `uv sync`, ruff, pytest y pipeline completo con datos sintéticos contra MinIO como
+      servicio. En verde en GitHub (run #3, H-010).
 - [x] MLflow en el compose (lo usa F6).
 - [x] Captura del grafo de linaje de Dagster a `ENTREGABLES/03_calidad_y_linaje/`.
 - [x] `MDS_DE_ESTUDIO/07_NORA_DEVOPS.md`.
