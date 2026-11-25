@@ -21,16 +21,23 @@ from lakehouse.governance.contracts import (
     BRONZE_MUSICBRAINZ_ARTISTS,
     BRONZE_QUARANTINE,
     BRONZE_SPOTIFY_STREAMS,
+    GOLD_ML_SKIP_FEATURES,
+    GOLD_ML_SKIP_PREDICTIONS,
     GOLD_TABLES,
+    ML_MODEL_NODE,
     SILVER_TABLES,
     SPOTIFY_STREAMS_SOURCE,
 )
 
 # Cache cruda de MinIO: no es tabla Delta, pero la escribe el paso de generos (D9).
 MUSICBRAINZ_CACHE = "landing.musicbrainz_cache"
+# Nodos sin contrato: la cache de MusicBrainz y el modelo registrado en MLflow (F6).
 EXTRA_SOURCES: dict[str, tuple[str, ...]] = {
     MUSICBRAINZ_CACHE: ("ext.musicbrainz", BRONZE_SPOTIFY_STREAMS.qualified_name),
+    ML_MODEL_NODE: (GOLD_ML_SKIP_FEATURES.qualified_name,),
 }
+# Mismo nombre que ml/registry.py (los roles no se importan entre si; una prueba los compara).
+ML_MODEL_NAME = "lakehouse_skip"
 # Fuentes de fuera del lakehouse: aparecen en el grafo, pero nada las materializa.
 EXTERNAL_SOURCES: dict[str, str] = {
     "ext.spotify": "Export del historial extendido de Spotify (JSON) en la carpeta SPOTIFY_DATA_DIR.",
@@ -117,6 +124,30 @@ STEPS: tuple[Step, ...] = (
         ("gold",),
         _names(GOLD_TABLES),
         "Plata a Oro: dimensiones, MERGE de fact_plays, OPTIMIZE y marts de KPIs.",
+    ),
+    Step(
+        "ml_features",
+        "ml",
+        "lakehouse.ml",
+        ("features",),
+        (GOLD_ML_SKIP_FEATURES.qualified_name,),
+        "Features sin fuga para la prediccion de skip (solo historia previa a cada reproduccion).",
+    ),
+    Step(
+        "ml_train",
+        "ml",
+        "lakehouse.ml",
+        ("train",),
+        (ML_MODEL_NODE,),
+        "Split temporal, modelo contra baseline, registro en MLflow y ML_METRICAS.md.",
+    ),
+    Step(
+        "ml_predict",
+        "ml",
+        "lakehouse.ml",
+        ("predict",),
+        (GOLD_ML_SKIP_PREDICTIONS.qualified_name,),
+        "Inferencia por lote con el modelo de MLflow (champion o el mas reciente).",
     ),
 )
 

@@ -1,6 +1,6 @@
 # Calidad y linaje
 
-> Generado por `python -m lakehouse.governance check` el 2026-11-23 19:40 UTC sobre las tablas de MinIO.
+> Generado por `python -m lakehouse.governance check` el 2026-11-25 00:02 UTC sobre las tablas de MinIO.
 > No se edita a mano. Solo conteos: ningún valor de los datos.
 > Catálogo: [CATALOGO.md](CATALOGO.md). Linaje de columnas: [LINAJE.md](LINAJE.md).
 
@@ -12,7 +12,7 @@
 |---|---|---|---|---|---|---|
 | Bronce | 4 | 17,046 | 67 | 67 | 0 | 0 |
 | Plata | 4 | 17,044 | 82 | 82 | 0 | 0 |
-| Oro | 9 | 37,833 | 167 | 167 | 0 | 0 |
+| Oro | 11 | 69,089 | 221 | 221 | 0 | 0 |
 
 ## Reconciliación y frescura entre capas
 
@@ -25,7 +25,7 @@
 | ✅ | plata = oro | plays = fact_plays: 15628 vs 15628 |
 | ✅ | dim_track = canciones de plata | dim_track = track_uri distintos en plays: 3628 vs 3628 |
 | ✅ | kpi diario = fact con fecha | fact_plays con date_key = suma de plays diarios: 15618 vs 15618 |
-| ✅ | ingesta reciente | hace 0 dias (umbral 30) |
+| ✅ | ingesta reciente | hace 1 dias (umbral 30) |
 | ✅ | plata al dia con bronce |  |
 | ✅ | oro al dia con plata |  |
 
@@ -126,9 +126,13 @@ flowchart LR
     gold_kpi_top_artists_monthly["kpi_top_artists_monthly"]
     gold_kpi_genres_monthly["kpi_genres_monthly"]
     gold_kpi_artist_retention["kpi_artist_retention"]
+    gold_ml_skip_features["ml_skip_features"]
+    gold_ml_skip_predictions["ml_skip_predictions"]
+  end
+  subgraph ml["ML (MLflow)"]
+    ml_skip_model["skip_model (MLflow)"]
   end
   subgraph consumer["Consumo"]
-    consumer_ml(["Modelo de skip (F6)"])
     consumer_bi(["Tablero Superset (F7)"])
   end
   ext_spotify --> landing_spotify_streams_source
@@ -155,7 +159,11 @@ flowchart LR
   gold_fact_plays --> gold_kpi_genres_monthly
   gold_dim_artist --> gold_kpi_genres_monthly
   gold_fact_plays --> gold_kpi_artist_retention
-  gold_fact_plays --> consumer_ml
+  gold_fact_plays --> gold_ml_skip_features
+  gold_dim_artist --> gold_ml_skip_features
+  gold_ml_skip_features --> gold_ml_skip_predictions
+  ml_skip_model --> gold_ml_skip_predictions
+  gold_ml_skip_features --> ml_skip_model
   gold_kpi_listening_daily --> consumer_bi
   gold_kpi_top_artists_monthly --> consumer_bi
   gold_kpi_genres_monthly --> consumer_bi
@@ -164,6 +172,7 @@ flowchart LR
   gold_dim_artist --> consumer_bi
   gold_dim_track --> consumer_bi
   gold_dim_platform --> consumer_bi
+  gold_ml_skip_predictions --> consumer_bi
 ```
 
 ## Resultados por tabla
@@ -233,7 +242,7 @@ flowchart LR
 | ✅ | rango | rows_quarantined en [0, inf] |  |
 | ✅ | no_nulos | ingested_at no nulo |  |
 | ✅ | regla | leidas = cargadas + cuarentena |  |
-| ✅ | frescura | ingesta reciente | hace 0 dias (umbral 30) |
+| ✅ | frescura | ingesta reciente | hace 1 dias (umbral 30) |
 
 ### `bronze.musicbrainz_artists` (1,301 filas; 15 de 15 OK)
 
@@ -568,3 +577,67 @@ flowchart LR
 | ✅ | regla | activos <= tamano de cohorte |  |
 | ✅ | regla | mes 0 retiene al 100% |  |
 | ✅ | unicos | unica por (cohort_month, months_since) |  |
+
+### `gold.ml_skip_features` (15,628 filas; 29 de 29 OK)
+
+| | Tipo | Check | Detalle |
+|---|---|---|---|
+| ✅ | existe | la tabla existe |  |
+| ✅ | esquema | columnas y tipos del contrato |  |
+| ✅ | esquema | sin columnas fuera del contrato |  |
+| ✅ | privacidad | sin IP ni seudonimo donde no toca |  |
+| ✅ | metadatos | comentarios y propiedades del contrato |  |
+| ✅ | volumen | tiene filas |  |
+| ✅ | no_nulos | play_id no nulo |  |
+| ✅ | no_nulos | ts_start no nulo |  |
+| ✅ | rango | local_hour en [0, 23] |  |
+| ✅ | rango | local_weekday en [1, 7] |  |
+| ✅ | valores | platform_family en {web, smart_device, android, ios, windows, macos, linux, other} |  |
+| ✅ | no_nulos | session_seq no nulo |  |
+| ✅ | rango | session_seq en [1, inf] |  |
+| ✅ | no_nulos | session_minutes no nulo |  |
+| ✅ | rango | session_minutes en [0, inf] |  |
+| ✅ | rango | prev_minutes_played en [0, inf] |  |
+| ✅ | no_nulos | track_prior_plays no nulo |  |
+| ✅ | rango | track_prior_plays en [0, inf] |  |
+| ✅ | rango | track_prior_skip_rate en [0, 1] |  |
+| ✅ | no_nulos | days_since_track_first no nulo |  |
+| ✅ | rango | days_since_track_first en [0, inf] |  |
+| ✅ | rango | artist_prior_plays en [0, inf] |  |
+| ✅ | rango | artist_prior_skip_rate en [0, 1] |  |
+| ✅ | rango | user_recent_skip_rate en [0, 1] |  |
+| ✅ | regla | primera vez = 0 dias |  |
+| ✅ | regla | sin historia no hay tasa |  |
+| ✅ | regla | primera de la sesion sin anterior |  |
+| ✅ | unicos | unica por (play_id) |  |
+| ✅ | referencia | play_id existe en gold.fact_plays.play_id |  |
+
+### `gold.ml_skip_predictions` (15,628 filas; 25 de 25 OK)
+
+| | Tipo | Check | Detalle |
+|---|---|---|---|
+| ✅ | existe | la tabla existe |  |
+| ✅ | esquema | columnas y tipos del contrato |  |
+| ✅ | esquema | sin columnas fuera del contrato |  |
+| ✅ | privacidad | sin IP ni seudonimo donde no toca |  |
+| ✅ | metadatos | comentarios y propiedades del contrato |  |
+| ✅ | volumen | tiene filas |  |
+| ✅ | no_nulos | play_id no nulo |  |
+| ✅ | no_nulos | ts_start no nulo |  |
+| ✅ | no_nulos | split no nulo |  |
+| ✅ | valores | split en {train, validation, test, unlabeled} |  |
+| ✅ | no_nulos | skip_probability no nulo |  |
+| ✅ | rango | skip_probability en [0, 1] |  |
+| ✅ | no_nulos | threshold no nulo |  |
+| ✅ | rango | threshold en [0, 1] |  |
+| ✅ | no_nulos | predicted_skip no nulo |  |
+| ✅ | no_nulos | baseline_probability no nulo |  |
+| ✅ | rango | baseline_probability en [0, 1] |  |
+| ✅ | no_nulos | model_name no nulo |  |
+| ✅ | no_nulos | model_version no nulo |  |
+| ✅ | no_nulos | mlflow_run_id no nulo |  |
+| ✅ | no_nulos | predicted_at no nulo |  |
+| ✅ | regla | prediccion = probabilidad >= umbral |  |
+| ✅ | regla | unlabeled si y solo si no hay etiqueta |  |
+| ✅ | unicos | unica por (play_id) |  |
+| ✅ | referencia | play_id existe en gold.ml_skip_features.play_id |  |

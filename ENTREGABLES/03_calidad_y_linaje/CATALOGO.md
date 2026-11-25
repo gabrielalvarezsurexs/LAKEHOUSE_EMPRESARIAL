@@ -38,6 +38,8 @@ columnas con privacidad.
 | [`gold.kpi_top_artists_monthly`](#goldkpi_top_artists_monthly) | interno | 8 | Juan Pablo Ramirez Carlon (Transformacion) | Artistas por mes con su ranking por minutos escuchados. |
 | [`gold.kpi_genres_monthly`](#goldkpi_genres_monthly) | interno | 7 | Juan Pablo Ramirez Carlon (Transformacion) | Generos (principal del artista) por mes; genre null = artista sin genero conocido. |
 | [`gold.kpi_artist_retention`](#goldkpi_artist_retention) | interno | 6 | Juan Pablo Ramirez Carlon (Transformacion) | Cohortes por mes de descubrimiento: que parte de los artistas se escucha N meses despues. |
+| [`gold.ml_skip_features`](#goldml_skip_features) | interno | 23 | Fernando Pena Meade (Machine Learning) | Una fila por reproduccion de fact_plays: features (solo historia previa) y etiqueta. |
+| [`gold.ml_skip_predictions`](#goldml_skip_predictions) | interno | 13 | Fernando Pena Meade (Machine Learning) | Probabilidad de skip por reproduccion (inferencia por lote con MLflow) y el baseline. |
 
 ## landing (archivos crudos)
 
@@ -514,3 +516,69 @@ Cohortes por mes de descubrimiento: que parte de los artistas se escucha N meses
 | `cohort_size` | `BIGINT` | no |  | >= 1 | Artistas descubiertos ese mes |
 | `artists_active` | `BIGINT` | no |  | >= 0 | De esos, cuantos se escucharon en el mes N |
 | `retention_rate` | `DOUBLE` | no |  | [0, 1] | artists_active / cohort_size |
+
+### `gold.ml_skip_features`
+
+Una fila por reproduccion de fact_plays: features (solo historia previa) y etiqueta.
+
+- **Dueño:** Fernando Pena Meade (Machine Learning)
+- **Clasificación:** interno: Historial limpio sin identificadores. Pipeline, gobernanza, ML y BI (Oro).
+- **Se alimenta de:** `gold.fact_plays`, `gold.dim_artist`
+- **Acceso en MinIO:** leen svc-transformation, svc-governance, svc-ml, svc-bi; escriben svc-transformation, svc-ml
+- **Llaves únicas:** (play_id)
+- **Referencias:** play_id > `gold.fact_plays.play_id`
+- **Reglas:** primera vez = 0 dias; sin historia no hay tasa; primera de la sesion sin anterior
+
+| Columna | Tipo | Nulos | Privacidad | Reglas | Descripción |
+|---|---|---|---|---|---|
+| `play_id` | `STRING` | no |  |  | SHA-256 de (ts_end, uri, ms_played): llave de la reproduccion |
+| `ts_start` | `TIMESTAMP` | no |  |  | Inicio (UTC): ordena la historia y el split temporal |
+| `date_key` | `INT` | sí |  |  | Fecha local como AAAAMMDD (dim_date) |
+| `is_skip` | `BOOLEAN` | sí |  |  | Etiqueta (fact_plays.is_skip); null = sin etiqueta, no se entrena |
+| `local_hour` | `INT` | sí |  | [0, 23] | Hora local del inicio |
+| `local_weekday` | `INT` | sí |  | [1, 7] | Dia de la semana local (1 lunes a 7 domingo) |
+| `is_weekend` | `BOOLEAN` | sí |  |  | Sabado o domingo local; null sin hora local |
+| `platform_family` | `STRING` | sí |  | en {web, smart_device, android, ios, windows, macos, linux, other} | Familia de plataforma |
+| `reason_start` | `STRING` | sí |  |  | Como empezo (se sabe al empezar) |
+| `shuffle` | `BOOLEAN` | sí |  |  | Modo aleatorio |
+| `offline` | `BOOLEAN` | sí |  |  | Sin conexion |
+| `incognito_mode` | `BOOLEAN` | sí |  |  | Sesion privada |
+| `primary_genre` | `STRING` | sí |  |  | Genero principal del artista; null si no se conoce |
+| `session_seq` | `INT` | no |  | >= 1 | Posicion dentro de la sesion |
+| `session_minutes` | `DOUBLE` | no |  | >= 0 | Minutos desde el inicio de la sesion hasta esta reproduccion |
+| `prev_is_skip` | `BOOLEAN` | sí |  |  | Etiqueta de la reproduccion anterior de la sesion; null si no hay |
+| `prev_minutes_played` | `DOUBLE` | sí |  | >= 0 | Minutos de la anterior en la sesion; null si no |
+| `track_prior_plays` | `BIGINT` | no |  | >= 0 | Veces que ya se habia reproducido la cancion |
+| `track_prior_skip_rate` | `DOUBLE` | sí |  | [0, 1] | Tasa de skip previa de la cancion; null si no tiene reproducciones etiquetadas antes |
+| `days_since_track_first` | `DOUBLE` | no |  | >= 0 | Dias desde la primera vez que se escucho la cancion (0 = primera vez) |
+| `artist_prior_plays` | `BIGINT` | sí |  | >= 0 | Reproducciones previas del artista; null si no hay |
+| `artist_prior_skip_rate` | `DOUBLE` | sí |  | [0, 1] | Tasa de skip previa del artista; null si no hay |
+| `user_recent_skip_rate` | `DOUBLE` | sí |  | [0, 1] | Tasa de skip de las 100 reproducciones anteriores (cuentan las etiquetadas); null si ninguna |
+
+### `gold.ml_skip_predictions`
+
+Probabilidad de skip por reproduccion (inferencia por lote con MLflow) y el baseline.
+
+- **Dueño:** Fernando Pena Meade (Machine Learning)
+- **Clasificación:** interno: Historial limpio sin identificadores. Pipeline, gobernanza, ML y BI (Oro).
+- **Se alimenta de:** `gold.ml_skip_features`, `ml.skip_model`
+- **Acceso en MinIO:** leen svc-transformation, svc-governance, svc-ml, svc-bi; escriben svc-transformation, svc-ml
+- **Llaves únicas:** (play_id)
+- **Referencias:** play_id > `gold.ml_skip_features.play_id`
+- **Reglas:** prediccion = probabilidad >= umbral; unlabeled si y solo si no hay etiqueta
+
+| Columna | Tipo | Nulos | Privacidad | Reglas | Descripción |
+|---|---|---|---|---|---|
+| `play_id` | `STRING` | no |  |  | SHA-256 de (ts_end, uri, ms_played): llave de la reproduccion |
+| `ts_start` | `TIMESTAMP` | no |  |  | Inicio (UTC) |
+| `date_key` | `INT` | sí |  |  | Fecha local como AAAAMMDD (dim_date) |
+| `split` | `STRING` | no |  | en {train, validation, test, unlabeled} | train, validation o test (corte temporal del entrenamiento) o unlabeled |
+| `is_skip` | `BOOLEAN` | sí |  |  | Etiqueta real; null si no tiene |
+| `skip_probability` | `DOUBLE` | no |  | [0, 1] | Probabilidad de skip del modelo |
+| `threshold` | `DOUBLE` | no |  | [0, 1] | Umbral elegido en validacion (max F1) |
+| `predicted_skip` | `BOOLEAN` | no |  |  | skip_probability >= threshold |
+| `baseline_probability` | `DOUBLE` | no |  | [0, 1] | Baseline: tasa de skip previa de la cancion (o la reciente del usuario, o la de entrenamiento) |
+| `model_name` | `STRING` | no |  |  | Modelo registrado en MLflow |
+| `model_version` | `STRING` | no |  |  | Version del modelo registrado |
+| `mlflow_run_id` | `STRING` | no |  |  | Corrida de MLflow que entreno el modelo |
+| `predicted_at` | `TIMESTAMP` | no |  |  | Momento (UTC) de la inferencia |

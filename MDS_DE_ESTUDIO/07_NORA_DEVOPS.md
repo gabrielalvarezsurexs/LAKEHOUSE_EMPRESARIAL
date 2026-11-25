@@ -23,7 +23,8 @@ No transformas datos: envuelves los comandos de cada rol, los encadenas y los vi
 - **Asset checks que bloquean:**
   - Después de cada paso corren los checks de gobernanza de sus tablas.
   - Si falla uno de tipo "error", lo que sigue no corre (Plata no se calcula sobre un Bronce malo).
-  - Son **20 checks**: uno por tabla, más reconciliación, frescura y `sin_alertas`.
+  - Son **22 checks**: uno por tabla (incluidas las 2 de ML desde F6), más reconciliación, frescura y
+    `sin_alertas`.
   - Van por paso y no por capa: géneros escribe en Bronce después de que Bronce ya pasó sus checks, y por capa se
     formaba un ciclo (H-008).
 - **Automatización sin clics:**
@@ -67,7 +68,7 @@ docker compose exec lakehouse python -m lakehouse.orchestration status          
 - **Qué debe aparecer:**
   - `Salud: 17 de 17 tablas`;
   - `Salud OK: sin alertas`;
-  - `Checks: SUCCEEDED=20`.
+  - `Checks: SUCCEEDED=22`.
 - **Dagster:** <http://localhost:3300>.
   - En **Lineage** se ve el grafo (la captura está en `ENTREGABLES/03_calidad_y_linaje/linaje_dagster.png`).
   - En **Runs**, las corridas.

@@ -79,7 +79,7 @@ def test_summarize_levels():
 
 
 def test_gold_step_adds_cross_layer_checks():
-    gold = steps.STEPS[-1]
+    gold = next(s for s in steps.STEPS if s.name == checks.CROSS_LAYER_STEP)
     data = {
         "row_counts": {},
         "results": [
@@ -204,8 +204,14 @@ def test_full_job_runs_every_step_in_order(monkeypatch):
     assert order.index("lakehouse.ingestion bronze") < order.index("lakehouse.ingestion genres")
     assert order.index("lakehouse.ingestion genres") < order.index("lakehouse.transformation silver")
     assert order.index("lakehouse.transformation silver") < order.index("lakehouse.transformation gold")
+    assert order.index("lakehouse.transformation gold") < order.index("lakehouse.ml features")
+    assert order.index("lakehouse.ml features") < order.index("lakehouse.ml train")
+    assert order.index("lakehouse.ml train") < order.index("lakehouse.ml predict")
+    # El reporte completo (check sin --tables) va despues de las predicciones.
+    assert order.index("lakehouse.ml predict") < runner.calls.index("lakehouse.governance check")
     assert order[-1] == "lakehouse.orchestration health"
-    assert len([c for c in runner.calls if "--tables" in c]) == 4  # bronze, genres, silver, gold
+    # bronze, genres, silver, gold, ml_features y ml_predict (ml_train no escribe tablas)
+    assert len([c for c in runner.calls if "--tables" in c]) == 6
 
 
 def test_failed_blocking_check_stops_the_next_layer(monkeypatch):
@@ -231,6 +237,18 @@ def test_cli_run_exit_codes(monkeypatch):
     assert cli.main(["run", "--job", "ingest_landing"]) == 0
     monkeypatch.setattr(steps, "run_command", FakeRunner(failing_table="gold.fact_plays"))
     assert cli.main(["run"]) == 1
+
+
+def test_cli_run_refuses_while_another_run_is_active(monkeypatch, tmp_path):
+    monkeypatch.setenv("DAGSTER_HOME", str(tmp_path))
+    runner = FakeRunner()
+    monkeypatch.setattr(steps, "run_command", runner)
+    with dg.DagsterInstance.get() as instance:
+        instance.add_run(dg.DagsterRun(job_name="lakehouse_full", status=dg.DagsterRunStatus.STARTED))
+        assert cli.active_runs(instance)
+    assert cli.main(["run", "--job", "ingest_landing"]) == 1
+    assert runner.calls == []  # no corrio ningun paso
+    assert cli.main(["run", "--job", "ingest_landing", "--force"]) == 0
 
 
 def test_cli_status_reads_runs_and_checks(monkeypatch, tmp_path, capsys):

@@ -13,12 +13,21 @@ dependencies = [
     # Orquestacion (F5, D6): assets, asset checks, schedules y sensores.
     "dagster>=1.13.31,<1.14",
     "dagster-webserver>=1.13.31,<1.14",
+    # ML (F6, D12): modelo, graficas y cliente de MLflow (el servidor es la imagen oficial del compose).
+    "scikit-learn>=1.6,<2",
+    "pandas>=2.2,<3",
+    "matplotlib>=3.9,<4",
+    "mlflow-skinny>=3.18,<3.19",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8",
     "ruff>=0.8",
+]
+# Solo local (F6): kernel para abrir notebooks/ en VS Code; la imagen y CI no lo instalan.
+notebook = [
+    "ipykernel>=6.29,<8",
 ]
 
 [build-system]

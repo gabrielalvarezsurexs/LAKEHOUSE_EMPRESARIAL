@@ -53,6 +53,8 @@ services:
       context: .
       dockerfile: infra/app/Dockerfile
     image: lakehouse-app:local
+    # tini como PID 1: recoge los procesos java de Spark que terminan (si no, quedan <defunct>; H-011).
+    init: true
     # Solo las variables que necesita; nunca el .env completo (minimo privilegio).
     environment:
       # Sin el root de MinIO: cada comando entra con el usuario de su rol (svc-ingestion, ...; D17).
@@ -71,8 +73,9 @@ services:
       REPORT_DIR: /app/reports
       # Orquestacion (F5): generos de la API real (default) o sinteticos (CI y replica sin datos reales).
       GENRES_SOURCE: ${GENRES_SOURCE:-api}
-      # ML (F6): servidor de experimentos.
+      # ML (F6): servidor de experimentos y carpeta del reporte del modelo (solo metricas agregadas).
       MLFLOW_TRACKING_URI: http://mlflow:5000
+      ML_REPORT_DIR: /app/reports_ml
     ports:
       # Dagster (UI, linaje, corridas) en http://localhost:3300; el 3000 suele estar ocupado (Grafana, etc.).
       - "${DAGSTER_PORT:-3300}:3000"
@@ -84,8 +87,9 @@ services:
       - ./infra/app/spark-conf:/opt/spark-conf:ro
       # Datos reales de Spotify, solo lectura (F2). Nunca se copian a la imagen.
       - ${SPOTIFY_DATA_DIR:-./DATOS_SPOTIFY}:/datos_spotify:ro
-      # Unica carpeta del repo con escritura: CALIDAD_Y_LINAJE.md (F4).
+      # Carpetas del repo con escritura: CALIDAD_Y_LINAJE.md (F4) y ML_METRICAS.md con sus graficas (F6).
       - ./ENTREGABLES/03_calidad_y_linaje:/app/reports
+      - ./ENTREGABLES/04_modelo_ml:/app/reports_ml
       # Historial de Dagster (corridas, cursores de sensores) y su configuracion (F5).
       - dagster-home:/opt/dagster/home
       - ./infra/dagster/dagster.yaml:/opt/dagster/home/dagster.yaml:ro
@@ -98,6 +102,9 @@ services:
     depends_on:
       minio-init:
         condition: service_completed_successfully
+      # La primera corrida automatica ya entrena y registra el modelo (F6).
+      mlflow:
+        condition: service_healthy
     restart: unless-stopped
 
   mlflow:

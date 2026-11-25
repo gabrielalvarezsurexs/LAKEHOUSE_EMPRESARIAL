@@ -42,6 +42,18 @@ def failed_checks(result) -> list[str]:
     ]
 
 
+ACTIVE_STATUSES = ("QUEUED", "NOT_STARTED", "STARTING", "STARTED", "CANCELING")
+
+
+def active_runs(instance) -> list[str]:
+    """Corridas en curso o en cola (las del daemon y las de este CLI comparten la instancia)."""
+    import dagster as dg
+
+    statuses = [dg.DagsterRunStatus[s] for s in ACTIVE_STATUSES]
+    runs = instance.get_runs(filters=dg.RunsFilter(statuses=statuses))
+    return [f"{r.job_name} {r.run_id[:8]} {r.status.value}" for r in runs]
+
+
 def _run(args: argparse.Namespace) -> int:
     import dagster as dg
 
@@ -49,6 +61,15 @@ def _run(args: argparse.Namespace) -> int:
 
     # Con DAGSTER_HOME la corrida queda en el historial de la UI; sin el (CI), instancia temporal.
     instance = dg.DagsterInstance.get() if os.environ.get("DAGSTER_HOME") else dg.DagsterInstance.ephemeral()
+    # execute_in_process no pasa por la cola del daemon (max_concurrent_runs: 1): dos pipelines con
+    # su propio Spark a la vez agotan la memoria del contenedor (H-011).
+    busy = active_runs(instance)
+    if busy and not args.force:
+        log.error(
+            "Hay corridas de Dagster en curso o en cola: %s. Espera a que terminen (status) o usa --force.",
+            "; ".join(busy),
+        )
+        return 1
     job = defs.resolve_job_def(args.job)
     result = job.execute_in_process(instance=instance, raise_on_error=False)
     failed = failed_checks(result)
@@ -110,6 +131,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--job",
         default="lakehouse_full",
         choices=("lakehouse_full", "ingest_landing", "pipeline_from_landing", "health_only"),
+    )
+    run.add_argument(
+        "--force", action="store_true", help="Corre aunque haya otra corrida en curso (riesgo de memoria)"
     )
     status = sub.add_parser("status", help="Ultimas corridas y resultado de cada check (contenedor)")
     status.add_argument("--limit", type=int, default=8)

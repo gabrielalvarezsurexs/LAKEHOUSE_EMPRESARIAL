@@ -29,7 +29,9 @@ def test_mermaid_has_every_table_and_edge():
     for t in c.ALL_TABLES:
         assert t.qualified_name.replace(".", "_") in graph
     assert "bronze_spotify_streams --> silver_plays" in graph
-    assert "gold_fact_plays --> consumer_ml" in graph
+    assert "gold_fact_plays --> gold_ml_skip_features" in graph
+    assert "gold_ml_skip_features --> ml_skip_model" in graph
+    assert "ml_skip_model --> gold_ml_skip_predictions" in graph
 
 
 def test_column_lineage_points_to_real_columns():

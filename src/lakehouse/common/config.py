@@ -54,6 +54,8 @@ class Settings:
     # Generico a proposito: sin nombres, correos ni URLs personales (regla de privacidad).
     musicbrainz_user_agent: str = DEFAULT_MUSICBRAINZ_USER_AGENT
     genres_source: str = "api"
+    # Servidor de experimentos (F6); vacio fuera del compose.
+    mlflow_tracking_uri: str = ""
 
     def for_role(self, role: str) -> "Settings":
         """Copia con las credenciales del usuario de servicio del rol; falla si falta su contrasena."""
@@ -80,6 +82,14 @@ class Settings:
                 "(plantilla: .env.example)."
             )
         return self.ip_hash_salt
+
+    def require_mlflow(self) -> str:
+        """URI de MLflow o error claro si falta (el compose la pone en el contenedor)."""
+        if not self.mlflow_tracking_uri:
+            raise ConfigError(
+                "Falta MLFLOW_TRACKING_URI (p. ej. http://mlflow:5000). Corre el ML dentro del contenedor."
+            )
+        return self.mlflow_tracking_uri
 
     @property
     def s3_ssl(self) -> bool:
@@ -126,6 +136,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         musicbrainz_user_agent=env.get("MUSICBRAINZ_USER_AGENT", "").strip()
         or DEFAULT_MUSICBRAINZ_USER_AGENT,
         genres_source=genres_source,
+        mlflow_tracking_uri=env.get("MLFLOW_TRACKING_URI", "").strip().rstrip("/"),
     )
 
 

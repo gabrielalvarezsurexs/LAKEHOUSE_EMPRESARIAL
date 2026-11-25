@@ -1,0 +1,180 @@
+{
+ "generated_at": "2026-11-25T00:00:59Z",
+ "mlflow": {
+  "run_id": "5df5f1bcd2aa450187449d5adfc7940e",
+  "model_version": "6"
+ },
+ "beats_baseline": true,
+ "train_end": "2020-03-25",
+ "validation_end": "2022-01-10",
+ "train_skip_rate": 0.17155528676544704,
+ "split_rows": {
+  "train": 9921,
+  "validation": 2126,
+  "test": 2127,
+  "unlabeled": 1454
+ },
+ "metrics": {
+  "model": {
+   "validation": {
+    "rows": 2126,
+    "skip_rate": 0.18673565380997179,
+    "roc_auc": 0.792055948823813,
+    "pr_auc": 0.5497680663055629,
+    "f1": 0.5367561260210035,
+    "precision": 0.5,
+    "recall": 0.5793450881612091,
+    "accuracy": 0.8132643461900282,
+    "threshold": 0.28342489931596515,
+    "tn": 1499,
+    "fp": 230,
+    "fn": 167,
+    "tp": 230
+   },
+   "test": {
+    "rows": 2127,
+    "skip_rate": 0.2153267512929008,
+    "roc_auc": 0.7462630919333022,
+    "pr_auc": 0.5107678773201493,
+    "f1": 0.5122669283611384,
+    "precision": 0.46524064171123,
+    "recall": 0.5698689956331878,
+    "accuracy": 0.76633756464504,
+    "threshold": 0.28342489931596515,
+    "tn": 1369,
+    "fp": 300,
+    "fn": 197,
+    "tp": 261
+   }
+  },
+  "baseline": {
+   "validation": {
+    "rows": 2126,
+    "skip_rate": 0.18673565380997179,
+    "roc_auc": 0.6386949256497182,
+    "pr_auc": 0.2609557582423009,
+    "f1": 0.37037037037037035,
+    "precision": 0.2694954128440367,
+    "recall": 0.5919395465994962,
+    "accuracy": 0.6241768579492004,
+    "threshold": 0.14583333333333334,
+    "tn": 1092,
+    "fp": 637,
+    "fn": 162,
+    "tp": 235
+   },
+   "test": {
+    "rows": 2127,
+    "skip_rate": 0.2153267512929008,
+    "roc_auc": 0.618995633187773,
+    "pr_auc": 0.28912394534533215,
+    "f1": 0.3955892487939352,
+    "precision": 0.2890231621349446,
+    "recall": 0.6266375545851528,
+    "accuracy": 0.5876821814762576,
+    "threshold": 0.14583333333333334,
+    "tn": 963,
+    "fp": 706,
+    "fn": 171,
+    "tp": 287
+   }
+  }
+ },
+ "importance": [
+  {
+   "feature": "reason_start",
+   "importance": 0.08905366547968226,
+   "std": 0.010115869066945872
+  },
+  {
+   "feature": "track_prior_skip_rate",
+   "importance": 0.017058563426050853,
+   "std": 0.003083021893410625
+  },
+  {
+   "feature": "prev_minutes_played",
+   "importance": 0.009242649809916847,
+   "std": 0.0021534065812092444
+  },
+  {
+   "feature": "artist_prior_skip_rate",
+   "importance": 0.007737813349520351,
+   "std": 0.002060716582725923
+  },
+  {
+   "feature": "session_minutes",
+   "importance": 0.0074382327623424335,
+   "std": 0.003060757274600674
+  },
+  {
+   "feature": "prev_is_skip",
+   "importance": 0.005895327327767453,
+   "std": 0.0016255182632860367
+  },
+  {
+   "feature": "session_seq",
+   "importance": 0.00396545273298623,
+   "std": 0.0011827270224619858
+  },
+  {
+   "feature": "days_since_track_first",
+   "importance": 0.0019812873331048974,
+   "std": 0.0016720918355387984
+  },
+  {
+   "feature": "platform_family",
+   "importance": 0.0017749822737251231,
+   "std": 0.0030562070331931527
+  },
+  {
+   "feature": "offline",
+   "importance": 0.0,
+   "std": 0.0
+  },
+  {
+   "feature": "incognito_mode",
+   "importance": 0.0,
+   "std": 0.0
+  },
+  {
+   "feature": "primary_genre",
+   "importance": -0.0005213225501764285,
+   "std": 0.0014438258923625386
+  },
+  {
+   "feature": "local_weekday",
+   "importance": -0.0009996049199242573,
+   "std": 0.0005820304020477523
+  },
+  {
+   "feature": "user_recent_skip_rate",
+   "importance": -0.0010023521654834778,
+   "std": 0.0019169864004468986
+  },
+  {
+   "feature": "shuffle",
+   "importance": -0.0010673703103862842,
+   "std": 0.0005138848906990377
+  },
+  {
+   "feature": "track_prior_plays",
+   "importance": -0.0012280187649952757,
+   "std": 0.0008015167969622267
+  },
+  {
+   "feature": "is_weekend",
+   "importance": -0.0014484525158227068,
+   "std": 0.001685257411579431
+  },
+  {
+   "feature": "local_hour",
+   "importance": -0.0019672894628741224,
+   "std": 0.0005668685166118872
+  },
+  {
+   "feature": "artist_prior_plays",
+   "importance": -0.00207089986682385,
+   "std": 0.002404059829732089
+  }
+ ]
+}

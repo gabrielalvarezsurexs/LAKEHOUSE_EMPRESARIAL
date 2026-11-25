@@ -12,15 +12,22 @@ from pathlib import Path
 
 import dagster as dg
 
-from lakehouse.governance.contracts import DELTA_TABLES
+from lakehouse.governance.contracts import DELTA_TABLES, ML_MODEL_NODE
 from lakehouse.orchestration import steps
-from lakehouse.orchestration.steps import EXTERNAL_SOURCES, MUSICBRAINZ_CACHE, Step, StepError
+from lakehouse.orchestration.steps import (
+    EXTERNAL_SOURCES,
+    ML_MODEL_NAME,
+    MUSICBRAINZ_CACHE,
+    Step,
+    StepError,
+)
 
 LAYER_KINDS = {
     "landing": {"minio", "json"},
     "bronze": {"spark", "delta", "minio"},
     "silver": {"spark", "delta", "minio"},
     "gold": {"spark", "delta", "minio"},
+    "ml": {"mlflow", "scikitlearn"},
 }
 REPORT_KEY = dg.AssetKey(["governance", "calidad_y_linaje"])
 HEALTH_KEY = dg.AssetKey(["monitoring", "lakehouse_health"])
@@ -28,7 +35,9 @@ HEALTH_CHECK = "sin_alertas"
 RAW_LOCATIONS = {
     "landing.spotify_streams_source": "s3://landing/spotify/<fecha>/*.json",
     MUSICBRAINZ_CACHE: "s3://landing/musicbrainz/<fuente>/*.json",
+    ML_MODEL_NODE: f"models:/{ML_MODEL_NAME} (MLflow, http://localhost:5000)",
 }
+ML_GROUP = "ml"  # features, modelo y predicciones juntos en el grafo, aunque las tablas vivan en Oro
 
 
 def asset_key(node: str) -> dg.AssetKey:
@@ -76,7 +85,7 @@ def table_spec(node: str, step: Step) -> dg.AssetSpec:
         deps=[asset_key(s) for s in steps.sources_of(node)],
         description=description,
         metadata=metadata,
-        group_name=layer,
+        group_name=ML_GROUP if step.role == "ml" else layer,
         owners=[f"team:{step.role}"],
         tags=tags,
         kinds=LAYER_KINDS[layer],

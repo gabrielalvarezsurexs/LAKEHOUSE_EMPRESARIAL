@@ -1,6 +1,7 @@
 # Responsable: Nora Valentina Frias Alpizar (Ingeniera DevOps / MLOps)
 # CI (F5): lint y pruebas sin Docker; luego el stack completo con datos sinteticos (D14): MinIO con sus
-# usuarios, el pipeline entero por Dagster (pasos, checks por capa, reporte y salud) y las pruebas con Spark.
+# usuarios, MLflow, el pipeline entero por Dagster (pasos, ML, checks por paso, reporte y salud) y las
+# pruebas con Spark.
 # Nunca usa datos reales: el repo es publico y CI solo ve los sinteticos que genera.
 
 name: CI
@@ -77,14 +78,15 @@ jobs:
       - name: Smoke (buckets y Delta con los usuarios de servicio)
         run: docker compose run --rm --no-deps lakehouse python -m lakehouse.common.smoke
 
+      # El pipeline entrena y registra el modelo (F6): MLflow tiene que estar arriba antes.
+      - name: MLflow arriba
+        run: docker compose up -d --wait mlflow
+
       - name: Pipeline completo por Dagster (falla si un paso o un check bloqueante falla)
         run: docker compose run --rm --no-deps lakehouse python -m lakehouse.orchestration run --job lakehouse_full
 
       - name: Pruebas con Spark
         run: docker compose run --rm --no-deps lakehouse pytest
-
-      - name: MLflow arriba
-        run: docker compose up -d --wait mlflow
 
       - name: Logs si algo fallo
         if: failure()

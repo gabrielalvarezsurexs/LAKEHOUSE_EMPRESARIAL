@@ -1,6 +1,6 @@
 # Roadmap
 
-**Última actualización:** 2026-11-23 (F5 cerrada con CI en verde; sigue F6).
+**Última actualización:** 2026-11-24 (F6 cerrada; sigue F7).
 **Entrega:** lunes 30 de noviembre de 2026 (clase 4 pm; Blackboard 11:59 pm).
 
 Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los commits. Lo que no se puede olvidar
@@ -12,7 +12,21 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
   - 325 checks sobre 17 tablas, 0 fallas.
   - 5 usuarios de MinIO con mínimo privilegio, verificados en vivo (41 de 41).
   - Catálogo, linaje y reporte generados en `ENTREGABLES/03_calidad_y_linaje/`.
-- 2026-11-23: **F5 cerrada y CI en verde. Sigue F6 (ML, Fernando): arrancar por sus casillas abajo.**
+- 2026-11-24: **F6 cerrada. Sigue F7 (BI, Emilio): arrancar por sus casillas abajo.** Pendiente: CI en verde
+  con el commit de F6 (ahora levanta MLflow antes del pipeline).
+  - **Código:** `src/lakehouse/ml/` (`features`, `model`, `registry`, `report`, `__main__` con `features`,
+    `train`, `predict` y `all`); contratos `gold.ml_skip_features` y `gold.ml_skip_predictions`; pasos de Dagster
+    `ml_features`, `ml_train` y `ml_predict` (grupo `ml`, usuario `svc-ml`); notebook `notebooks/ml_skip.ipynb`.
+  - **Resultado real:** 15,628 filas (14,174 con etiqueta). En prueba, ROC-AUC 0.746 contra 0.619 del baseline y
+    PR-AUC 0.511 contra 0.289. Le gana: `lakehouse_skip` v6 con alias `champion`.
+  - **Corrida de Gabriel:** `pipeline_from_landing` SUCCESS en 6.2 min; `status`: `Checks: SUCCEEDED=22`.
+  - **H-011:** al levantar el stack, el daemon corrió el `daily_pipeline` perdido a la vez que un `run` manual y
+    se acabó la memoria. Ahora `run` se niega si hay otra corrida activa (`--force`), y el contenedor usa
+    `init: true` (quedaban `java <defunct>`).
+  - **Local:** ruff limpio, 242 en verde. Nuevo grupo de uv `notebook` (ipykernel, solo local).
+  - **Docs al día:** guía `06_FERNANDO_ML.md`, D25, HALLAZGOS, RUBRICA, NO_OLVIDAR, README (paso 6), CLAUDE.md,
+    `ENTREGABLES/`.
+- 2026-11-23: F5 cerrada y CI en verde.
   - **Código:**
     - `src/lakehouse/orchestration/`: `steps`, `assets`, `checks`, `automation`, `health`, `definitions` y
       `__main__` (`run`, `health`, `status`).
@@ -73,7 +87,7 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
 | F3 | Transformación: Plata y Oro | Juan Pablo | mar 24 a mié 25 | Hecha (lun 23) | `03_JUAN_PABLO_TRANSFORMACION.md` |
 | F4 | Gobernanza: contratos, calidad, catálogo, linaje, seguridad | Victor | mié 25 | Hecha (lun 23) | `04_VICTOR_GOBERNANZA.md` |
 | F5 | Orquestación, CI/CD, monitoreo y MLflow | Nora | jue 26 | Hecha (lun 23, CI en verde) | `07_NORA_DEVOPS.md` |
-| F6 | Modelo de ML (skip) | Fernando | jue 26 a vie 27 | Pendiente | `06_FERNANDO_ML.md` |
+| F6 | Modelo de ML (skip) | Fernando | jue 26 a vie 27 | Hecha (mar 24) | `06_FERNANDO_ML.md` |
 | F7 | Tablero de BI | Emilio | vie 27 a sáb 28 | Pendiente | `05_EMILIO_BI.md` |
 | F8 | Cierre técnico: README, ENTREGABLES, diagrama final, prueba de réplica | Gabriel | sáb 28 | Pendiente | `01_GABRIEL_ARQUITECTO.md` (final) |
 | F9 | Guion, ensayo, video y entrega | Todos | dom 29 a lun 30 | Pendiente | `00_GUION_VIDEO.md` |
@@ -94,7 +108,7 @@ Holgura: el domingo 29 queda libre de código. Si una fase se atrasa se recorta 
 
 ## F1. Infraestructura (Gabriel, lun 23) : hecha
 
-- [x] uv: `pyproject.toml` (layout `src/`, grupo `dev`; `ml` se agrega en F6, Dagster en F5), `.python-version`
+- [x] uv: `pyproject.toml` (layout `src/`, grupo `dev`; Dagster en F5; ML en F6 como dependencias normales y el grupo `notebook` solo local), `.python-version`
       3.11, `uv.lock` (PySpark 3.5.10, delta-spark 3.3.3).
 - [x] Esqueleto `src/lakehouse/` con un subpaquete por rol y encabezado `Responsable:`; `tests/` espejo.
 - [x] `src/lakehouse/common/`: `config.py`, `spark.py`, `log.py` (no `logging.py` para no tapar el estándar),
@@ -188,14 +202,14 @@ Holgura: el domingo 29 queda libre de código. Si una fase se atrasa se recorta 
 - [x] `MDS_DE_ESTUDIO/07_NORA_DEVOPS.md`.
 - **Listo cuando:** soltar un JSON en landing dispara todo hasta Oro sin tocar nada, y CI pasa en verde.
 
-## F6. Machine Learning (Fernando, jue 26 a vie 27)
+## F6. Machine Learning (Fernando, jue 26 a vie 27) : hecha (mar 24)
 
-- [ ] `gold.ml_skip_features` sin fuga de información (features solo con historia previa a cada reproducción).
-- [ ] Entrenamiento con split temporal; baseline (tasa de skip histórica) vs modelo (p. ej. gradient boosting).
-- [ ] Métricas: ROC-AUC, PR-AUC, F1, matriz de confusión, importancia de features; registro en MLflow.
-- [ ] Inferencia por lote a `gold.ml_skip_predictions`; asset en Dagster.
-- [ ] `notebooks/` de presentación; `ENTREGABLES/04_modelo_ml/ML_METRICAS.md` y gráficas (generados).
-- [ ] `MDS_DE_ESTUDIO/06_FERNANDO_ML.md`.
+- [x] `gold.ml_skip_features` sin fuga de información (features solo con historia previa a cada reproducción).
+- [x] Entrenamiento con split temporal; baseline (tasa de skip histórica) vs modelo (gradient boosting).
+- [x] Métricas: ROC-AUC, PR-AUC, F1, matriz de confusión, importancia de features; registro en MLflow.
+- [x] Inferencia por lote a `gold.ml_skip_predictions`; asset en Dagster.
+- [x] `notebooks/ml_skip.ipynb`; `ENTREGABLES/04_modelo_ml/ML_METRICAS.md` y gráficas (generados).
+- [x] `MDS_DE_ESTUDIO/06_FERNANDO_ML.md`.
 - **Listo cuando:** el modelo le gana al baseline en el periodo de prueba y la inferencia corre desde Dagster.
 
 ## F7. Tablero de BI (Emilio, vie 27 a sáb 28)

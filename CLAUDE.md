@@ -62,9 +62,13 @@ con Spark), con gobernanza, un modelo de ML que lee de Oro y un tablero de BI. I
     el pipeline completo solos.
   - **Comandos:** `python -m lakehouse.orchestration status` (corridas y checks), `... health` (salud y alertas) y
     `... run --job <lakehouse_full|ingest_landing|pipeline_from_landing|health_only>`. `run` es lo que corre CI y
-    falla si un paso o un check bloqueante falla.
+    falla si un paso o un check bloqueante falla. Se niega si el daemon ya tiene una corrida en curso o en cola
+    (H-011); al levantar el stack, revisa `status` antes de correr algo a mano.
   - **Mantenimiento:** `python -m lakehouse.ingestion bronze --compact` compacta Bronce aunque no haya archivos
     nuevos.
+- ML (F6), dentro del contenedor: `python -m lakehouse.ml all` (features, entrenamiento con MLflow e inferencia;
+  también `features`, `train` o `predict`). Va dentro del pipeline de Dagster. Escribe
+  `ENTREGABLES/04_modelo_ml/`. Notebook local: `uv sync --group notebook`.
 - Los comandos exactos de cada pieza se agregan aquí al cerrar su fase.
 
 ## Seguridad y privacidad

@@ -693,6 +693,122 @@ GOLD_KPI_ARTIST_RETENTION = TableContract(
     ),
 )
 
+# --- ML (F6): features sin fuga y predicciones por lote; viven en Oro (gold/ml_*, D17) ---
+# Sin fuga: cada feature usa solo lo que se sabe al empezar la reproduccion (su contexto y las que
+# empezaron antes). ms_played y reason_end de la propia fila nunca entran: son el resultado.
+ML_OWNER = "Fernando Pena Meade (Machine Learning)"
+ML_MODEL_NODE = "ml.skip_model"  # modelo registrado en MLflow: nodo del linaje, no tabla Delta
+SPLITS = ("train", "validation", "test", "unlabeled")
+
+GOLD_ML_SKIP_FEATURES = TableContract(
+    name="ml_skip_features",
+    layer="gold",
+    owner=ML_OWNER,
+    description="Una fila por reproduccion de fact_plays: features (solo historia previa) y etiqueta.",
+    sources=("gold.fact_plays", "gold.dim_artist"),
+    columns=(
+        _PLAY_ID,
+        _c("ts_start", "TIMESTAMP", "Inicio (UTC): ordena la historia y el split temporal", nullable=False),
+        _DATE_KEY,
+        _c("is_skip", "BOOLEAN", "Etiqueta (fact_plays.is_skip); null = sin etiqueta, no se entrena"),
+        _c("local_hour", "INT", "Hora local del inicio", min_value=0, max_value=23),
+        _c("local_weekday", "INT", "Dia de la semana local (1 lunes a 7 domingo)", min_value=1, max_value=7),
+        _c("is_weekend", "BOOLEAN", "Sabado o domingo local; null sin hora local"),
+        _c("platform_family", "STRING", "Familia de plataforma", values=PLATFORM_FAMILY_VALUES),
+        _c("reason_start", "STRING", "Como empezo (se sabe al empezar)"),
+        _c("shuffle", "BOOLEAN", "Modo aleatorio"),
+        _c("offline", "BOOLEAN", "Sin conexion"),
+        _c("incognito_mode", "BOOLEAN", "Sesion privada"),
+        _c("primary_genre", "STRING", "Genero principal del artista; null si no se conoce"),
+        _c("session_seq", "INT", "Posicion dentro de la sesion", nullable=False, min_value=1),
+        _c(
+            "session_minutes",
+            "DOUBLE",
+            "Minutos desde el inicio de la sesion hasta esta reproduccion",
+            nullable=False,
+            min_value=0,
+        ),
+        _c("prev_is_skip", "BOOLEAN", "Etiqueta de la reproduccion anterior de la sesion; null si no hay"),
+        _c("prev_minutes_played", "DOUBLE", "Minutos de la anterior en la sesion; null si no", min_value=0),
+        _c(
+            "track_prior_plays",
+            "BIGINT",
+            "Veces que ya se habia reproducido la cancion",
+            nullable=False,
+            min_value=0,
+        ),
+        _c(
+            "track_prior_skip_rate",
+            "DOUBLE",
+            "Tasa de skip previa de la cancion; null si no tiene reproducciones etiquetadas antes",
+            **_SHARE,
+        ),
+        _c(
+            "days_since_track_first",
+            "DOUBLE",
+            "Dias desde la primera vez que se escucho la cancion (0 = primera vez)",
+            nullable=False,
+            min_value=0,
+        ),
+        _c("artist_prior_plays", "BIGINT", "Reproducciones previas del artista; null si no hay", min_value=0),
+        _c("artist_prior_skip_rate", "DOUBLE", "Tasa de skip previa del artista; null si no hay", **_SHARE),
+        _c(
+            "user_recent_skip_rate",
+            "DOUBLE",
+            "Tasa de skip de las 100 reproducciones anteriores (cuentan las etiquetadas); null si ninguna",
+            **_SHARE,
+        ),
+    ),
+    unique_keys=(("play_id",),),
+    references=(_fk("play_id", "gold.fact_plays"),),
+    rules=(
+        Rule("primera vez = 0 dias", "track_prior_plays > 0 OR days_since_track_first = 0"),
+        Rule("sin historia no hay tasa", "track_prior_plays > 0 OR track_prior_skip_rate IS NULL"),
+        Rule("primera de la sesion sin anterior", "session_seq > 1 OR prev_minutes_played IS NULL"),
+    ),
+)
+
+GOLD_ML_SKIP_PREDICTIONS = TableContract(
+    name="ml_skip_predictions",
+    layer="gold",
+    owner=ML_OWNER,
+    description="Probabilidad de skip por reproduccion (inferencia por lote con MLflow) y el baseline.",
+    sources=("gold.ml_skip_features", ML_MODEL_NODE),
+    columns=(
+        _PLAY_ID,
+        _c("ts_start", "TIMESTAMP", "Inicio (UTC)", nullable=False),
+        _DATE_KEY,
+        _c(
+            "split",
+            "STRING",
+            "train, validation o test (corte temporal del entrenamiento) o unlabeled",
+            nullable=False,
+            values=SPLITS,
+        ),
+        _c("is_skip", "BOOLEAN", "Etiqueta real; null si no tiene"),
+        _c("skip_probability", "DOUBLE", "Probabilidad de skip del modelo", nullable=False, **_SHARE),
+        _c("threshold", "DOUBLE", "Umbral elegido en validacion (max F1)", nullable=False, **_SHARE),
+        _c("predicted_skip", "BOOLEAN", "skip_probability >= threshold", nullable=False),
+        _c(
+            "baseline_probability",
+            "DOUBLE",
+            "Baseline: tasa de skip previa de la cancion (o la reciente del usuario, o la de entrenamiento)",
+            nullable=False,
+            **_SHARE,
+        ),
+        _c("model_name", "STRING", "Modelo registrado en MLflow", nullable=False),
+        _c("model_version", "STRING", "Version del modelo registrado", nullable=False),
+        _c("mlflow_run_id", "STRING", "Corrida de MLflow que entreno el modelo", nullable=False),
+        _c("predicted_at", "TIMESTAMP", "Momento (UTC) de la inferencia", nullable=False),
+    ),
+    unique_keys=(("play_id",),),
+    references=(_fk("play_id", "gold.ml_skip_features"),),
+    rules=(
+        Rule("prediccion = probabilidad >= umbral", "predicted_skip = (skip_probability >= threshold)"),
+        Rule("unlabeled si y solo si no hay etiqueta", "(split = 'unlabeled') = (is_skip IS NULL)"),
+    ),
+)
+
 LANDING_TABLES = (SPOTIFY_STREAMS_SOURCE,)
 BRONZE_TABLES = (
     BRONZE_SPOTIFY_STREAMS,
@@ -712,8 +828,10 @@ GOLD_TABLES = (
     GOLD_KPI_GENRES_MONTHLY,
     GOLD_KPI_ARTIST_RETENTION,
 )
+# Tablas de ML: en Oro, pero las escribe el paso de ML (svc-ml), no transformacion.
+ML_TABLES = (GOLD_ML_SKIP_FEATURES, GOLD_ML_SKIP_PREDICTIONS)
 # Tablas Delta (las de landing son archivos crudos) y el registro completo, en orden del flujo.
-DELTA_TABLES = BRONZE_TABLES + SILVER_TABLES + GOLD_TABLES
+DELTA_TABLES = BRONZE_TABLES + SILVER_TABLES + GOLD_TABLES + ML_TABLES
 ALL_TABLES = LANDING_TABLES + DELTA_TABLES
 
 

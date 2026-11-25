@@ -39,9 +39,13 @@ flowchart LR
     gold_kpi_top_artists_monthly["kpi_top_artists_monthly"]
     gold_kpi_genres_monthly["kpi_genres_monthly"]
     gold_kpi_artist_retention["kpi_artist_retention"]
+    gold_ml_skip_features["ml_skip_features"]
+    gold_ml_skip_predictions["ml_skip_predictions"]
+  end
+  subgraph ml["ML (MLflow)"]
+    ml_skip_model["skip_model (MLflow)"]
   end
   subgraph consumer["Consumo"]
-    consumer_ml(["Modelo de skip (F6)"])
     consumer_bi(["Tablero Superset (F7)"])
   end
   ext_spotify --> landing_spotify_streams_source
@@ -68,7 +72,11 @@ flowchart LR
   gold_fact_plays --> gold_kpi_genres_monthly
   gold_dim_artist --> gold_kpi_genres_monthly
   gold_fact_plays --> gold_kpi_artist_retention
-  gold_fact_plays --> consumer_ml
+  gold_fact_plays --> gold_ml_skip_features
+  gold_dim_artist --> gold_ml_skip_features
+  gold_ml_skip_features --> gold_ml_skip_predictions
+  ml_skip_model --> gold_ml_skip_predictions
+  gold_ml_skip_features --> ml_skip_model
   gold_kpi_listening_daily --> consumer_bi
   gold_kpi_top_artists_monthly --> consumer_bi
   gold_kpi_genres_monthly --> consumer_bi
@@ -77,6 +85,7 @@ flowchart LR
   gold_dim_artist --> consumer_bi
   gold_dim_track --> consumer_bi
   gold_dim_platform --> consumer_bi
+  gold_ml_skip_predictions --> consumer_bi
 ```
 
 ## Columnas clave
@@ -99,3 +108,5 @@ flowchart LR
 | `gold.kpi_listening_daily.skip_rate` | `gold.fact_plays.is_skip` | skips / reproducciones etiquetadas por dia local |
 | `gold.kpi_genres_monthly.genre` | `gold.dim_artist.primary_genre`<br>`gold.fact_plays.artist_key` | Genero principal del artista de cada reproduccion |
 | `gold.kpi_artist_retention.retention_rate` | `gold.fact_plays.artist_key`<br>`gold.fact_plays.date_key` | Artistas de la cohorte escuchados N meses despues / tamano de la cohorte |
+| `gold.ml_skip_features.track_prior_skip_rate` | `gold.fact_plays.is_skip`<br>`gold.fact_plays.track_key`<br>`gold.fact_plays.ts_start` | Skips / etiquetadas de la misma cancion que empezaron antes (sin fuga) |
+| `gold.ml_skip_predictions.skip_probability` | `gold.ml_skip_features.(todas las features)` | Modelo registrado en MLflow (ml.skip_model) aplicado por lote a cada fila |

@@ -9,7 +9,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from lakehouse.governance.contracts import ALL_TABLES, GOLD_TABLES
+from lakehouse.governance.contracts import (
+    ALL_TABLES,
+    GOLD_ML_SKIP_FEATURES,
+    GOLD_ML_SKIP_PREDICTIONS,
+    GOLD_TABLES,
+    ML_MODEL_NODE,
+)
 
 
 @dataclass(frozen=True)
@@ -36,8 +42,14 @@ EXTRA_NODES = (
         "musicbrainz cache (JSON)",
         ("ext.musicbrainz", "bronze.spotify_streams"),
     ),
-    Node("consumer.ml", "consumer", "Modelo de skip (F6)", ("gold.fact_plays",)),
-    Node("consumer.bi", "consumer", "Tablero Superset (F7)", _KPIS + _DIMS),
+    # El modelo se entrena con las features y lo usa la inferencia por lote (F6).
+    Node(ML_MODEL_NODE, "ml", "skip_model (MLflow)", (GOLD_ML_SKIP_FEATURES.qualified_name,)),
+    Node(
+        "consumer.bi",
+        "consumer",
+        "Tablero Superset (F7)",
+        _KPIS + _DIMS + (GOLD_ML_SKIP_PREDICTIONS.qualified_name,),
+    ),
 )
 
 GROUP_TITLES = {
@@ -46,6 +58,7 @@ GROUP_TITLES = {
     "bronze": "bronze",
     "silver": "silver",
     "gold": "gold",
+    "ml": "ML (MLflow)",
     "consumer": "Consumo",
 }
 
@@ -201,5 +214,15 @@ COLUMN_LINEAGE = (
         "gold.kpi_artist_retention.retention_rate",
         ("gold.fact_plays.artist_key", "gold.fact_plays.date_key"),
         "Artistas de la cohorte escuchados N meses despues / tamano de la cohorte",
+    ),
+    ColumnLineage(
+        "gold.ml_skip_features.track_prior_skip_rate",
+        ("gold.fact_plays.is_skip", "gold.fact_plays.track_key", "gold.fact_plays.ts_start"),
+        "Skips / etiquetadas de la misma cancion que empezaron antes (sin fuga)",
+    ),
+    ColumnLineage(
+        "gold.ml_skip_predictions.skip_probability",
+        ("gold.ml_skip_features.(todas las features)",),
+        f"Modelo registrado en MLflow ({ML_MODEL_NODE}) aplicado por lote a cada fila",
     ),
 )

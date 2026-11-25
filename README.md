@@ -12,8 +12,8 @@ historial extendido de reproducciones de Spotify:
 - **BI:** tablero en Apache Superset sobre la capa Oro.
 - **Dependencias:** uv (Python 3.11) en local; Docker Compose para los servicios.
 
-> **Estado (2026-11-23):** en construcción. Infraestructura (F1), ingesta (F2), transformación (F3), gobernanza
-> (F4) y orquestación con CI (F5) listas; sigue ML (F6). Avance en
+> **Estado (2026-11-24):** en construcción. Infraestructura (F1), ingesta (F2), transformación (F3), gobernanza
+> (F4), orquestación con CI (F5) y ML (F6) listas; sigue el tablero de BI (F7). Avance en
 > [DOCS/ROADMAP.md](DOCS/ROADMAP.md). Entrega: 30 de noviembre de 2026.
 
 ## Estructura
@@ -23,7 +23,7 @@ historial extendido de reproducciones de Spotify:
 | [`src/lakehouse/`](src/lakehouse/) | Código del pipeline, un subpaquete por rol (`common`, `ingestion`, `transformation`, `governance`, `ml`, `orchestration`) |
 | [`infra/`](infra/), [`docker-compose.yml`](docker-compose.yml) | Imagen de Spark + Delta, buckets de MinIO y el stack |
 | [`tests/`](tests/) | Pruebas, espejo de `src/lakehouse/` |
-| `bi/`, `notebooks/` | Tablero y notebooks del modelo (F6 y F7) |
+| [`notebooks/`](notebooks/), `bi/` | Notebook de presentación del modelo (F6) y tablero (F7) |
 | [`ENTREGABLES/`](ENTREGABLES/) | Entregables que no son código: diagrama, reportes, tablero, video |
 | [`DOCS/`](DOCS/) | Arquitectura, decisiones, datos fuente, roadmap |
 | [`MDS_DE_ESTUDIO/`](MDS_DE_ESTUDIO/) | Guía de cada integrante sobre su parte |
@@ -89,8 +89,9 @@ Corre los checks de calidad sobre Bronce, Plata y Oro, prueba los permisos de ca
 ### 5. Orquestación (Dagster: el pipeline corre solo)
 
 Dagster arranca con el stack en <http://localhost:3300> (`DAGSTER_PORT` en `.env`). Sus sensores vigilan la
-carpeta `SPOTIFY_DATA_DIR` y el bucket `landing`, así que **la primera vez corre los pasos 2 a 4 sin que hagas
-nada**: Bronce, géneros, Plata, Oro, checks por paso (si uno falla, lo siguiente no corre), reporte y salud. Luego
+carpeta `SPOTIFY_DATA_DIR` y el bucket `landing`, así que **la primera vez corre los pasos 2 a 4 y el modelo (paso 6) sin
+que hagas nada**: Bronce, géneros, Plata, Oro, ML, checks por paso (si uno falla, lo siguiente no corre), reporte
+y salud. Luego
 repite el pipeline todos los días a las 6:00 y revisa la salud cada 6 horas.
 
 Para replicar sin datos reales, antes del paso 1 genera los sintéticos y apunta el `.env` a ellos (igual que CI):
@@ -108,11 +109,29 @@ docker compose exec lakehouse python -m lakehouse.orchestration health    # tama
 docker compose exec lakehouse python -m lakehouse.orchestration run --job lakehouse_full  # todo, a mano
 ```
 
-`status` debe mostrar las corridas en `SUCCESS` y `Checks: SUCCEEDED=20`. En la UI, **Lineage** muestra el
-grafo (sale de los contratos) y **Automation** los sensores y schedules. MLflow queda en <http://localhost:5000>.
-CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) hace lo mismo con sintéticos en cada push.
+`status` debe mostrar las corridas en `SUCCESS` y `Checks: SUCCEEDED=22`. En la UI, **Lineage** muestra el
+grafo (sale de los contratos) y **Automation** los sensores y schedules. CI
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) hace lo mismo con sintéticos en cada push.
 
-### 6. Pruebas
+Dagster corre una sola corrida a la vez. Si la máquina estuvo apagada a las 6:00, al levantar el stack corre el
+pipeline diario que se perdió; mientras tanto `run` se niega a correr otro (dos Spark a la vez agotan la memoria).
+Revisa `status` antes de correr algo a mano.
+
+### 6. Machine Learning (predicción de skip)
+
+Va dentro del pipeline (pasos `ml_features`, `ml_train` y `ml_predict`). A mano:
+
+```powershell
+docker compose exec lakehouse python -m lakehouse.ml all   # features, entrenamiento e inferencia
+```
+
+Lee solo de Oro: arma las features sin fuga, entrena con un corte por fechas, compara contra un baseline y registra
+el modelo en MLflow (<http://localhost:5000>, vista **Model training**). La versión que le gana al baseline recibe
+el alias `champion`, y la inferencia la usa para escribir `gold.ml_skip_predictions`. El resultado queda en
+[`ENTREGABLES/04_modelo_ml/ML_METRICAS.md`](ENTREGABLES/04_modelo_ml/ML_METRICAS.md). Para abrir el notebook
+[`notebooks/ml_skip.ipynb`](notebooks/ml_skip.ipynb): `uv sync --group notebook` y el kernel del `.venv`.
+
+### 7. Pruebas
 
 ```powershell
 uv sync                              # instala Python 3.11 y las dependencias del uv.lock

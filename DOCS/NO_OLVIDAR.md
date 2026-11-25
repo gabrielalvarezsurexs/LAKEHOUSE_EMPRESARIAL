@@ -96,6 +96,15 @@ la sección "Retomar aquí" de [ROADMAP.md](ROADMAP.md). Si algo de aquí cambia
     schedule lo repite diario a las 6:00. Cada corrida reescribe `CALIDAD_Y_LINAJE.md`, así que antes de cada
     commit hay que revisar su diff: solo debe traer conteos.
   - **Datos reales:** el sensor de landing no se demuestra subiendo un sintético, porque mezclaría datos.
+  - **Una corrida a la vez (H-011):** al levantar el stack, Dagster corre solo el pipeline diario si se perdió el
+    de las 6:00. Antes de correr algo a mano, `orchestration status`; `run` se niega si hay otra en curso. Si una
+    corrida queda en `STARTED` con el contenedor reiniciado, está muerta: se termina en la UI (Runs → Terminate).
+- **ML (D25):**
+  - Cada entrenamiento reescribe `ENTREGABLES/04_modelo_ml/` (`ML_METRICAS.md`, `metrics.json` y 3 gráficas):
+    antes del commit, revisar que solo traiga números agregados.
+  - **El notebook** `notebooks/ml_skip.ipynb` **se versiona sin salidas** (Clear All Outputs; una prueba lo
+    revisa). Se abre con `uv sync --group notebook`; un `uv sync` normal quita el kernel.
+  - MLflow abre en la vista GenAI: los modelos están en **Model training**.
 - "Sin ejecuciones manuales" (rúbrica): schedule + sensor en Dagster. "README para replicar" (rúbrica): datos
   sintéticos + prueba desde un clon limpio en F8.
 

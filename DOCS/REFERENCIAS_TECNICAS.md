@@ -12,8 +12,16 @@ Windows 11, 31 GB RAM, 24 hilos, Docker 29.5 + Compose 5.1 (el daemon se prende 
 
 - Proyecto con `pyproject.toml` (layout `src/`) y `uv.lock` versionados; `.python-version` = 3.11 (uv baja ese
   Python solo, sin tocar el 3.14 de la máquina).
-- Grupos de dependencias para no cargar todo en todos lados: base (pyspark, delta-spark, dagster), `ml`
-  (scikit-learn, mlflow), `dev` (pytest, ruff). Se agregan con `uv add <pkg>` / `uv add --group dev <pkg>`.
+- Dependencias:
+  - **Base** (imagen, CI y local): pyspark, delta-spark, boto3, dagster y, desde F6, scikit-learn 1.9.1, pandas
+    2.3.3, matplotlib 3.11.2 y `mlflow-skinny` 3.18.0. El cliente skinny basta: el servidor es la imagen oficial.
+  - **`dev`:** pytest y ruff. También va en la imagen, para correr pytest en el contenedor.
+  - **`notebook`** (solo local): ipykernel, para abrir `notebooks/` en VS Code. Se instala con
+    `uv sync --group notebook`.
+  - Se agregan con `uv add <pkg>` o `uv add --group <grupo> <pkg>`.
+- **MLflow (cliente 3.18):** `mlflow.sklearn.log_model` por default serializa con skops, que necesita otro paquete.
+  Se usa `serialization_format="cloudpickle"`. La versión nueva sale de `ModelInfo.registered_model_version`, y el
+  alias se pone con `MlflowClient.set_registered_model_alias`.
 - Comandos: `uv sync`, `uv run pytest`, `uv run ruff check .`, `uv run python -m lakehouse.<modulo>`.
 - Dockerfile: copia `pyproject.toml` y `uv.lock`, corre `uv sync --frozen --no-install-project` (capa
   cacheada), luego copia `src/` y `tests/` y sincroniza el proyecto. Incluye el grupo `dev` para correr pytest
