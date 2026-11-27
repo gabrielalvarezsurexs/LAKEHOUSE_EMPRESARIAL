@@ -1,0 +1,31 @@
+flowchart LR
+  subgraph Fuentes
+    S[JSON historial extendido<br/>de Spotify]
+    MB[API MusicBrainz<br/>géneros]
+  end
+
+  subgraph Docker["Docker Compose (local, $0)"]
+    subgraph Medallion["MinIO (S3) + Delta Lake, procesado con Spark 3.5: un bucket por capa, un usuario svc-* por servicio"]
+      direction LR
+      L[(landing<br/>crudo intacto)] -->|Spark: esquema,<br/>IP seudonimizada,<br/>cuarentena| B[(bronze)]
+      B -->|Spark: limpieza,<br/>sesiones, skip| P[(silver<br/>sin IP)]
+      P -->|Spark: estrella,<br/>KPIs, MERGE| O[(gold)]
+    end
+    D[Dagster: sensores, schedules,<br/>checks que bloquean, salud]
+    Q[Gobernanza: contratos, calidad,<br/>catálogo y linaje]
+    ML[ML: predicción de skip<br/>scikit-learn]
+    MF[MLflow<br/>experimentos y registro]
+    SS[Superset + DuckDB<br/>tablero]
+  end
+
+  GH[GitHub Actions CI<br/>datos sintéticos]
+
+  S --> L
+  MB --> L
+  O -->|features| ML -->|predicciones| O
+  ML -.->|métricas y modelo| MF
+  O -->|delta_scan, solo lectura| SS
+  Q -.->|valida cada capa| Medallion
+  D -.->|orquesta| Medallion
+  D -.->|orquesta| ML
+  GH -.->|prueba todo el stack| Docker

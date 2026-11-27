@@ -105,10 +105,23 @@ la sección "Retomar aquí" de [ROADMAP.md](ROADMAP.md). Si algo de aquí cambia
   - **El notebook** `notebooks/ml_skip.ipynb` **se versiona sin salidas** (Clear All Outputs; una prueba lo
     revisa). Se abre con `uv sync --group notebook`; un `uv sync` normal quita el kernel.
   - MLflow abre en la vista GenAI: los modelos están en **Model training**.
+- **BI (D26):**
+  - **El tablero vive en `bi/`:** Superset borra sus metadatos y lo reimporta en cada arranque, así que lo que se
+    cambie en la UI se pierde.
+  - **Para cambiarlo:** se edita `bi/dashboard.py` o `bi/sql/`, se regenera el export de `ENTREGABLES/05_tablero_bi/`
+    (si no, la prueba falla) y se reinicia `superset`.
+  - **Acceso:** DuckDB lee `gold` con `svc-bi`; el secreto vive solo en la conexión.
+  - **Capturas:** el dueño de los datos aprueba cada una antes de subirla.
 - "Sin ejecuciones manuales" (rúbrica): schedule + sensor en Dagster. "README para replicar" (rúbrica): datos
   sintéticos + prueba desde un clon limpio en F8.
 
 ## Demo del 30
 
-- Antes de clase: Docker prendido, stack arriba, pipeline ya corrido con los datos reales, tablero cargado y el
-  video listo como respaldo.
+- **Antes de clase:**
+  - Docker prendido y stack arriba.
+  - `orchestration wait` en `Pipeline listo`, con los datos reales.
+  - `bi/check.py` con `15 de 15 graficas OK`.
+  - Sesión iniciada en Superset.
+  - El video listo como respaldo.
+- Pestañas y orden de la demo: checklist de [00_GUION_VIDEO.md](../MDS_DE_ESTUDIO/00_GUION_VIDEO.md).
+- **Si algo falla en vivo:** se pone el video. No se depura frente al grupo.

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from lakehouse.governance.contracts import (
     ALL_TABLES,
+    GOLD_FACT_PLAYS,
     GOLD_ML_SKIP_FEATURES,
     GOLD_ML_SKIP_PREDICTIONS,
     GOLD_TABLES,
@@ -44,11 +45,18 @@ EXTRA_NODES = (
     ),
     # El modelo se entrena con las features y lo usa la inferencia por lote (F6).
     Node(ML_MODEL_NODE, "ml", "skip_model (MLflow)", (GOLD_ML_SKIP_FEATURES.qualified_name,)),
+    # Lo que lee bi/sql (una prueba de tests/bi lo compara): todo Oro, incluidas las tablas de ML (F7).
     Node(
         "consumer.bi",
         "consumer",
         "Tablero Superset (F7)",
-        _KPIS + _DIMS + (GOLD_ML_SKIP_PREDICTIONS.qualified_name,),
+        _KPIS
+        + _DIMS
+        + (
+            GOLD_FACT_PLAYS.qualified_name,
+            GOLD_ML_SKIP_FEATURES.qualified_name,
+            GOLD_ML_SKIP_PREDICTIONS.qualified_name,
+        ),
     ),
 )
 

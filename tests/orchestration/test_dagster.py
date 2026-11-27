@@ -251,6 +251,51 @@ def test_cli_run_refuses_while_another_run_is_active(monkeypatch, tmp_path):
     assert cli.main(["run", "--job", "ingest_landing", "--force"]) == 0
 
 
+@pytest.mark.parametrize(
+    ("runs", "expected"),
+    [
+        ([("ingest_landing", "SUCCESS"), ("pipeline_from_landing", "SUCCESS")], 0),
+        ([("pipeline_from_landing", "FAILURE")], 1),
+        ([("ingest_landing", "SUCCESS")], 1),  # el pipeline nunca llego: se agota el tiempo
+        ([("lakehouse_full", "STARTED")], 1),  # sigue en curso: se agota el tiempo
+    ],
+)
+def test_cli_wait_reports_the_last_pipeline_run(monkeypatch, tmp_path, runs, expected):
+    monkeypatch.setenv("DAGSTER_HOME", str(tmp_path))
+    with dg.DagsterInstance.get() as instance:
+        for job, status in runs:
+            instance.add_run(dg.DagsterRun(job_name=job, status=dg.DagsterRunStatus[status]))
+    assert cli.main(["wait", "--timeout", "0", "--settle", "0", "--poll", "0"]) == expected
+
+
+RETRIES_YAML = "run_retries:\n  enabled: true\n  max_retries: 1\n  retry_on_asset_or_op_failure: false\n"
+
+
+def test_recover_marks_orphans_for_retry_and_wait_keeps_waiting(monkeypatch, tmp_path):
+    """Un reinicio deja la corrida en STARTED: recover la marca como falla del worker y se reintenta."""
+    monkeypatch.setenv("DAGSTER_HOME", str(tmp_path))
+    (tmp_path / "dagster.yaml").write_text(RETRIES_YAML, encoding="utf-8")
+    # NOT_STARTED en lugar de QUEUED: una QUEUED de prueba pide el origen remoto del job.
+    statuses = {"lakehouse_full": "STARTED", "health_only": "NOT_STARTED", "ingest_landing": "CANCELING"}
+    with dg.DagsterInstance.get() as instance:
+        ids = {}
+        for job, status in statuses.items():
+            run = dg.DagsterRun(job_name=job, status=dg.DagsterRunStatus[status])
+            ids[job] = instance.add_run(run).run_id
+    assert cli.main(["recover"]) == 0
+    with dg.DagsterInstance.get() as instance:
+        runs = {job: instance.get_run_by_id(run_id) for job, run_id in ids.items()}
+        assert runs["lakehouse_full"].status == dg.DagsterRunStatus.FAILURE
+        assert runs["lakehouse_full"].tags["dagster/failure_reason"] == "RUN_WORKER_RESTART"
+        assert runs["lakehouse_full"].tags[cli.WILL_RETRY_TAG] == "true"
+        assert runs["health_only"].status == dg.DagsterRunStatus.NOT_STARTED  # no es huerfana
+        assert runs["ingest_landing"].status == dg.DagsterRunStatus.CANCELED
+        instance.report_run_canceled(runs["health_only"])  # sin cola, wait solo ve el reintento pendiente
+        assert cli.last_pipeline_status(instance) == "RETRYING"
+        assert cli.recover_orphan_runs(instance) == []  # idempotente
+    assert cli.main(["wait", "--timeout", "0", "--settle", "0", "--poll", "0"]) == 1  # no da por bueno
+
+
 def test_cli_status_reads_runs_and_checks(monkeypatch, tmp_path, capsys):
     monkeypatch.setenv("DAGSTER_HOME", str(tmp_path))
     monkeypatch.setattr(steps, "run_command", FakeRunner(failing_table="silver.plays"))

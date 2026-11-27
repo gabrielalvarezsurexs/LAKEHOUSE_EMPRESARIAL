@@ -15,7 +15,8 @@ Windows 11, 31 GB RAM, 24 hilos, Docker 29.5 + Compose 5.1 (el daemon se prende 
 - Dependencias:
   - **Base** (imagen, CI y local): pyspark, delta-spark, boto3, dagster y, desde F6, scikit-learn 1.9.1, pandas
     2.3.3, matplotlib 3.11.2 y `mlflow-skinny` 3.18.0. El cliente skinny basta: el servidor es la imagen oficial.
-  - **`dev`:** pytest y ruff. También va en la imagen, para correr pytest en el contenedor.
+  - **`dev`:** pytest, ruff y DuckDB 1.5.6. DuckDB es la misma versión que la imagen de Superset y sirve para
+    probar el SQL del tablero en local. El grupo también va en la imagen, para correr pytest en el contenedor.
   - **`notebook`** (solo local): ipykernel, para abrir `notebooks/` en VS Code. Se instala con
     `uv sync --group notebook`.
   - Se agregan con `uv add <pkg>` o `uv add --group <grupo> <pkg>`.
@@ -144,14 +145,32 @@ Windows 11, 31 GB RAM, 24 hilos, Docker 29.5 + Compose 5.1 (el daemon se prende 
 - La extensión `delta` de DuckDB salió de experimental en mayo 2026 (lectura y escritura, time travel). Para BI
   solo se lee: `delta_scan('s3://gold/...')` con un `SECRET` de S3 apuntando a MinIO (`ENDPOINT`, `URL_STYLE
   'path'`, `USE_SSL false`).
-- Superset se conecta con `duckdb-engine` (SQLAlchemy). Las vistas sobre Oro se crean al iniciar.
+- Superset se conecta con `duckdb-engine` (SQLAlchemy) a `duckdb:///:memory:`. Las "vistas" sobre Oro son
+  datasets virtuales de Superset (SQL de `bi/sql/`), no vistas de DuckDB, porque `CREATE VIEW` valida la tabla y Oro
+  puede no existir al arrancar (D26).
 - Fuentes: [DuckDB delta](https://duckdb.org/docs/current/core_extensions/delta),
   [Delta en DuckDB, mayo 2026](https://duckdb.org/2026/05/07/delta-uc-updates).
 
 ## Superset
 
-- Imagen oficial `apache/superset` fijada (verificar en F7) más `pip install duckdb-engine` en una imagen propia.
-- El tablero se exporta como ZIP/YAML al repo (`bi/`) y se importa al arrancar: el tablero vive en el repo.
+- **Imagen (F7):** `apache/superset:6.1.0`, fijada por digest. Trae Python 3.10, así que DuckDB queda en 1.5.6 (la
+  2.x pide 3.11; el extra `duckdb` de Superset pide `<2`). En la imagen no hay `pip`: se instala con
+  `uv pip install --python /app/.venv/bin/python`.
+- **Extensiones de DuckDB:** `delta` y `httpfs` se instalan al construir en `/opt/duckdb/extensions`, y cada conexión
+  hace `SET extension_directory`. Al arrancar no se descarga nada.
+- **Import:** `superset import-dashboards --path <zip> --username admin`. El importador de dashboards trae bases,
+  datasets y gráficas con `overwrite=False` (solo el dashboard se sobrescribe), por eso `start.sh` borra los metadatos
+  en cada arranque (D26). Al importar, Superset reescribe el `datasource` de `params` y de `query_context`, y en los
+  filtros nativos cambia `datasetUuid` por el id.
+- **Filtros nativos:** sin `chartsInScope`, un filtro aplica a todas las gráficas. Si el dataset de una gráfica no
+  tiene la columna, el backend la ignora y la marca como no aplicable.
+- **Verificación:** `GET /api/v1/chart/<id>/data/` corre la `query_context` guardada de la gráfica. `bi/dashboard.py`
+  la genera, porque el import oficial la deja en `null`.
+- **Secretos de S3 en DuckDB:** `CREATE OR REPLACE SECRET ... (TYPE s3, ENDPOINT 'minio:9000', URL_STYLE 'path',
+  USE_SSL false, SCOPE 's3://gold')` es temporal (no se escribe a disco) y funciona igual en conexiones `read_only`.
+  Se probó en local con DuckDB 1.5.6 y una tabla Delta escrita con `deltalake`.
+- Fuentes: código de Superset 6.1.0 (`superset/commands/dashboard/importers/v1/`,
+  `superset/db_engine_specs/duckdb.py`, `superset/examples/`).
 
 ## MusicBrainz
 

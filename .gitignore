@@ -198,6 +198,8 @@ _delta_log/
 /ci-data/
 
 # Runtime del stack
+# Salida de infra/verificar.ps1 (local; se revisa, no se versiona)
+/logs/
 mlruns/
 **/dagster_home/storage/
 **/dagster_home/logs/

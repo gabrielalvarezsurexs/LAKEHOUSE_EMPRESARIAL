@@ -1,6 +1,9 @@
 # Diagrama de arquitectura
 
-Entregable 1. Versión 1 (F1); la final con imagen exportada queda en F8. GitHub dibuja el Mermaid directo.
+Entregable 1, versión final (F8). GitHub dibuja el Mermaid directo; la imagen
+[`arquitectura.png`](arquitectura.png) sale del mismo archivo [`arquitectura.mmd`](arquitectura.mmd).
+
+![Arquitectura del lakehouse](arquitectura.png)
 
 ```mermaid
 flowchart LR
@@ -10,43 +13,41 @@ flowchart LR
   end
 
   subgraph Docker["Docker Compose (local, $0)"]
-    subgraph MinIO["MinIO: almacenamiento S3"]
-      L[(landing<br/>crudo intacto)]
-      B[(bronze<br/>Delta)]
-      P[(silver<br/>Delta)]
-      O[(gold<br/>Delta: estrella + KPIs)]
+    subgraph Medallion["MinIO (S3) + Delta Lake, procesado con Spark 3.5: un bucket por capa, un usuario svc-* por servicio"]
+      direction LR
+      L[(landing<br/>crudo intacto)] -->|Spark: esquema,<br/>IP seudonimizada,<br/>cuarentena| B[(bronze)]
+      B -->|Spark: limpieza,<br/>sesiones, skip| P[(silver<br/>sin IP)]
+      P -->|Spark: estrella,<br/>KPIs, MERGE| O[(gold)]
     end
-    subgraph App["Contenedor lakehouse: Spark 3.5 + Delta Lake"]
-      I[Ingesta]
-      T1[Bronce a Plata]
-      T2[Plata a Oro]
-      Q[Checks de calidad<br/>catálogo y linaje]
-      ML[ML: predicción de skip]
-    end
-    D[Dagster<br/>schedule, sensor, linaje]
-    MF[MLflow<br/>experimentos]
+    D[Dagster: sensores, schedules,<br/>checks que bloquean, salud]
+    Q[Gobernanza: contratos, calidad,<br/>catálogo y linaje]
+    ML[ML: predicción de skip<br/>scikit-learn]
+    MF[MLflow<br/>experimentos y registro]
     SS[Superset + DuckDB<br/>tablero]
   end
 
-  S --> I
-  MB --> I
-  I --> L --> B --> T1 --> P --> T2 --> O
-  Q -. valida .-> B & P & O
-  O --> ML -->|predicciones| O
-  ML -. métricas .-> MF
-  O -->|delta_scan| SS
-  D -. orquesta .-> I & T1 & T2 & Q & ML
-  GH[GitHub Actions CI<br/>datos sintéticos] -. prueba .-> App
+  GH[GitHub Actions CI<br/>datos sintéticos]
+
+  S --> L
+  MB --> L
+  O -->|features| ML -->|predicciones| O
+  ML -.->|métricas y modelo| MF
+  O -->|delta_scan, solo lectura| SS
+  Q -.->|valida cada capa| Medallion
+  D -.->|orquesta| Medallion
+  D -.->|orquesta| ML
+  GH -.->|prueba todo el stack| Docker
 ```
 
 | Pieza | Qué hace | Dónde está |
 |---|---|---|
-| MinIO | Almacenamiento S3 local, un bucket por capa | `docker-compose.yml` (servicio `minio`), `infra/minio/` |
-| Spark + Delta Lake | Cómputo y formato de tabla con ACID, historial y time travel | `infra/app/Dockerfile`, `src/lakehouse/common/spark.py` |
+| MinIO | Almacenamiento S3 local, un bucket por capa, usuarios con mínimo privilegio | `docker-compose.yml` (`minio`, `minio-init`), `infra/minio/` |
+| Spark + Delta Lake | Cómputo y formato de tabla con ACID, MERGE, historial y time travel | `infra/app/Dockerfile`, `src/lakehouse/common/spark.py` |
 | Medallion | landing > bronze > silver > gold | `src/lakehouse/ingestion/`, `src/lakehouse/transformation/` |
-| Gobernanza | Contratos, calidad, catálogo, linaje, seudonimización | `src/lakehouse/governance/` |
-| Dagster | Orquestación sin ejecuciones manuales | `src/lakehouse/orchestration/` |
-| ML | Predicción de skip leyendo de Oro, MLflow | `src/lakehouse/ml/`, `notebooks/` |
-| BI | Superset sobre Oro vía DuckDB | `bi/`, `infra/superset/` |
+| Gobernanza | Contratos, calidad por capa, catálogo, linaje, seudonimización, accesos | `src/lakehouse/governance/` |
+| Dagster | Orquestación sin ejecuciones manuales, checks que bloquean, monitoreo | `src/lakehouse/orchestration/`, `infra/dagster/` |
+| ML | Predicción de skip leyendo de Oro; MLflow con alias `champion` | `src/lakehouse/ml/`, `notebooks/` |
+| BI | Superset sobre Oro vía DuckDB, tablero como código | `bi/`, `infra/superset/` |
+| CI | Lint, pruebas, pipeline completo y tablero con sintéticos en cada push | `.github/workflows/ci.yml` |
 
 Decisiones y su porqué: [DOCS/ARQUITECTURA.md](../../DOCS/ARQUITECTURA.md).

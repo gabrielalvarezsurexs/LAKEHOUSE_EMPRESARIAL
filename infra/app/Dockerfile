@@ -37,4 +37,6 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen
 # `docker compose exec lakehouse python -m lakehouse...`.
 ENV DAGSTER_HOME=/opt/dagster/home
 RUN mkdir -p /opt/dagster/home
-CMD ["dagster", "dev", "-m", "lakehouse.orchestration.definitions", "-h", "0.0.0.0", "-p", "3000"]
+# Antes de Dagster: las corridas que murieron con el contenedor anterior se marcan para reintento (H-012).
+# Con `;` un error de recover no impide arrancar; exec deja a Dagster recibir las senales de docker stop.
+CMD ["/bin/sh", "-c", "python -m lakehouse.orchestration recover; exec dagster dev -m lakehouse.orchestration.definitions -h 0.0.0.0 -p 3000"]

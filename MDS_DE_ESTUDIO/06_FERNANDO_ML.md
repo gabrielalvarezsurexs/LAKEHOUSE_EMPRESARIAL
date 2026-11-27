@@ -7,7 +7,7 @@ Tú respondes una pregunta: **cuando empieza una canción, ¿la va a saltar?** (
 - **Lees solo de Oro:** armas `gold.ml_skip_features`, con una fila por reproducción (15,628).
 - **Entrenas y comparas:** un modelo de gradient boosting contra un baseline simple, con un corte por fechas.
 - **Registras en MLflow:** cada entrenamiento deja métricas, gráficas y una versión del modelo `lakehouse_skip`.
-- **Escribes de vuelta en Oro:** las predicciones van a `gold.ml_skip_predictions`, que el tablero de BI puede usar.
+- **Escribes de vuelta en Oro:** las predicciones van a `gold.ml_skip_predictions`, y el tablero de BI las muestra contra la realidad.
 
 Todo corre solo dentro del pipeline de Dagster (pasos `ml_features`, `ml_train` y `ml_predict`).
 

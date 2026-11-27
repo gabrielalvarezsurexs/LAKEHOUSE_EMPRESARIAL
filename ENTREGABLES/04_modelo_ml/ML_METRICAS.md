@@ -1,12 +1,12 @@
 # Métricas del modelo de skip
 
-> Generado por `python -m lakehouse.ml train` (paso `ml_train` de Dagster) el 2026-11-25 00:00 UTC. No se edita a mano. Solo números agregados: ninguna fila, canción ni artista.
+> Generado por `python -m lakehouse.ml train` (paso `ml_train` de Dagster) el 2026-11-26 15:53 UTC. No se edita a mano. Solo números agregados: ninguna fila, canción ni artista.
 
 ## Veredicto
 
 **El modelo le gana al baseline en el periodo de prueba:** ROC-AUC 0.746 contra 0.619 y PR-AUC 0.511 contra 0.289.
 
-- MLflow: modelo `lakehouse_skip` versión 6, corrida `5df5f1bc` (alias `champion`: la usa la inferencia).
+- MLflow: modelo `lakehouse_skip` versión 7, corrida `fa6d8e80` (alias `champion`: la usa la inferencia).
 - Modelo: `HistGradientBoostingClassifier` (scikit-learn) con one-hot de plataforma, motivo de inicio y género. El umbral maximiza F1 en validación.
 - Baseline: tasa de skip histórica de la canción. Si la canción es nueva, usa la tasa reciente del usuario y, si tampoco hay, la de entrenamiento.
 

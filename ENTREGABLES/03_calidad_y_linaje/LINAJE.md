@@ -85,6 +85,8 @@ flowchart LR
   gold_dim_artist --> consumer_bi
   gold_dim_track --> consumer_bi
   gold_dim_platform --> consumer_bi
+  gold_fact_plays --> consumer_bi
+  gold_ml_skip_features --> consumer_bi
   gold_ml_skip_predictions --> consumer_bi
 ```
 

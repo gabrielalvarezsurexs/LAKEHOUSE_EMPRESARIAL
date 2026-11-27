@@ -1,137 +1,176 @@
 # Lakehouse Empresarial
 
 Proyecto Final de **Datos Masivos** (Universidad Panamericana). Un Data Lakehouse local y de costo cero sobre el
-historial extendido de reproducciones de Spotify:
+historial extendido de reproducciones de Spotify de un integrante, de punta a punta:
 
-- **Almacenamiento:** MinIO (S3 local en Docker), un bucket por capa.
+- **Almacenamiento:** MinIO (S3 local en Docker), un bucket por capa y un usuario con permisos mínimos por servicio.
 - **Formato y cómputo:** Delta Lake con Apache Spark (PySpark), arquitectura Medallion (Bronce > Plata > Oro).
-- **Orquestación:** Dagster (schedules, sensores, checks de calidad y linaje).
-- **Gobernanza:** contratos de esquema, catálogo, linaje, pruebas de calidad por capa y seudonimización de datos
-  personales.
-- **Machine Learning:** predicción de skips leyendo de la capa Oro, con seguimiento en MLflow.
-- **BI:** tablero en Apache Superset sobre la capa Oro.
-- **Dependencias:** uv (Python 3.11) en local; Docker Compose para los servicios.
+- **Orquestación:** Dagster: sensores y schedules (sin ejecuciones manuales), checks de calidad que bloquean, linaje
+  y monitoreo.
+- **Gobernanza:** contratos de esquema, catálogo, linaje, pruebas de calidad por capa y seudonimización de la IP.
+- **Machine Learning:** predicción de skips leyendo de Oro, con seguimiento y registro en MLflow.
+- **BI:** tablero en Apache Superset que lee Oro directo de MinIO con DuckDB.
+- **DevOps:** uv (Python 3.11), Docker Compose y CI en GitHub Actions con datos sintéticos.
 
-> **Estado (2026-11-24):** en construcción. Infraestructura (F1), ingesta (F2), transformación (F3), gobernanza
-> (F4), orquestación con CI (F5) y ML (F6) listas; sigue el tablero de BI (F7). Avance en
-> [DOCS/ROADMAP.md](DOCS/ROADMAP.md). Entrega: 30 de noviembre de 2026.
+> **Estado (2026-11-24):** el código de las 8 fases técnicas está completo. Falta la corrida final con los datos
+> reales, las capturas del tablero y el video. Avance en [DOCS/ROADMAP.md](DOCS/ROADMAP.md). Entrega: 30 de
+> noviembre de 2026.
+
+```mermaid
+flowchart LR
+  S[JSON de Spotify] --> L[(landing)]
+  MB[API MusicBrainz] --> L
+  L --> B[(bronze)] --> P[(silver)] --> O[(gold<br/>estrella + KPIs)]
+  O --> ML[ML: skip<br/>MLflow] -->|predicciones| O
+  O -->|DuckDB| BI[Superset]
+  D[Dagster] -. orquesta y valida .-> B & P & O & ML
+```
+
+Diagrama completo y entregables: [ENTREGABLES/](ENTREGABLES/README.md). Decisiones y su porqué:
+[DOCS/ARQUITECTURA.md](DOCS/ARQUITECTURA.md).
 
 ## Estructura
 
 | Carpeta | Contenido |
 |---|---|
 | [`src/lakehouse/`](src/lakehouse/) | Código del pipeline, un subpaquete por rol (`common`, `ingestion`, `transformation`, `governance`, `ml`, `orchestration`) |
-| [`infra/`](infra/), [`docker-compose.yml`](docker-compose.yml) | Imagen de Spark + Delta, buckets de MinIO y el stack |
-| [`tests/`](tests/) | Pruebas, espejo de `src/lakehouse/` |
-| [`notebooks/`](notebooks/), `bi/` | Notebook de presentación del modelo (F6) y tablero (F7) |
+| [`bi/`](bi/) | Tablero como código: SQL sobre Oro, gráficas y filtros, y su prueba en vivo |
+| [`infra/`](infra/), [`docker-compose.yml`](docker-compose.yml) | Imágenes (Spark + Delta, Superset), MinIO, Dagster y la prueba de réplica |
+| [`notebooks/`](notebooks/) | Notebook de presentación del modelo |
+| [`tests/`](tests/) | Pruebas, espejo de `src/lakehouse/` más `bi/` |
 | [`ENTREGABLES/`](ENTREGABLES/) | Entregables que no son código: diagrama, reportes, tablero, video |
-| [`DOCS/`](DOCS/) | Arquitectura, decisiones, datos fuente, roadmap |
+| [`DOCS/`](DOCS/) | Arquitectura, decisiones, datos fuente, rúbrica, roadmap |
 | [`MDS_DE_ESTUDIO/`](MDS_DE_ESTUDIO/) | Guía de cada integrante sobre su parte |
 
 ## Cómo replicar
 
-Requisitos: [Docker Desktop](https://www.docker.com/products/docker-desktop/) (prendido) y
-[uv](https://docs.astral.sh/uv/). Los datos reales no se publican (privacidad); el pipeline corre igual con
-datos sintéticos del mismo esquema (paso 2).
+Requisitos: [Docker Desktop](https://www.docker.com/products/docker-desktop/) (prendido, con ~8 GB de RAM),
+[uv](https://docs.astral.sh/uv/) y PowerShell 7 (`pwsh`). Los datos reales no se publican (privacidad); todo corre
+igual con datos sintéticos del mismo esquema.
 
-### 1. Infraestructura (MinIO + Spark + Delta)
+### Opción rápida: un solo comando (datos sintéticos)
+
+En la raíz de un clon limpio:
+
+```powershell
+pwsh -File infra/replica.ps1 -Keep
+```
+
+El script hace todo sin pasos manuales:
+
+1. Arma el `.env` con contraseñas aleatorias.
+2. Corre lint y pruebas.
+3. Genera los sintéticos.
+4. Levanta el stack; los sensores de Dagster corren el pipeline completo.
+5. Verifica la salud, cada gráfica del tablero y las pruebas con Spark.
+
+Termina con `REPLICA OK` y los minutos que tardó (la primera vez tarda más, porque construye las imágenes). Con `-Keep` el stack queda arriba para
+explorarlo (pasos 5 a 7). Sin `-Keep`, lo borra al final.
+
+### Paso a paso
+
+#### 1. Infraestructura
 
 ```powershell
 Copy-Item .env.example .env          # luego cambia la contraseña de MinIO en .env
-# Sal para seudonimizar IPs (se agrega a .env sin imprimirse):
-$b = New-Object byte[] 24; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
-Add-Content .env ("IP_HASH_SALT=" + (-join ($b | ForEach-Object { $_.ToString('x2') })))
-# Contraseñas de los 5 usuarios de servicio de MinIO (una sola vez):
-foreach ($r in 'INGESTION','TRANSFORMATION','GOVERNANCE','ML','BI') {
+# Secretos (se agregan a .env sin imprimirse): sal de IPs, 5 usuarios de MinIO y Superset.
+$secrets = 'IP_HASH_SALT','MINIO_SECRET_INGESTION','MINIO_SECRET_TRANSFORMATION','MINIO_SECRET_GOVERNANCE',
+           'MINIO_SECRET_ML','MINIO_SECRET_BI','SUPERSET_SECRET_KEY','SUPERSET_ADMIN_PASSWORD'
+foreach ($v in $secrets) {
   $b = New-Object byte[] 24; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
-  Add-Content .env ("MINIO_SECRET_$r=" + (-join ($b | ForEach-Object { $_.ToString('x2') }))) }
-docker compose up -d --build         # la primera vez tarda (baja Java, PySpark y los JARs)
-docker compose exec lakehouse python -m lakehouse.common.smoke
+  Add-Content .env ("$v=" + (-join ($b | ForEach-Object { $_.ToString('x2') }))) }
 ```
 
-El smoke debe terminar con `Smoke OK`. Consola de MinIO: <http://localhost:9001> (usuario y contraseña del `.env`),
-con los buckets `landing`, `bronze`, `silver` y `gold`, y los usuarios `svc-*` de cada servicio (permisos mínimos).
-
-### 2. Ingesta (landing > Bronce + géneros)
-
-Sin datos reales, con sintéticos:
-
-```powershell
-docker compose exec lakehouse python -m lakehouse.ingestion synthetic --out /tmp/sinteticos --rows 5000
-docker compose exec lakehouse python -m lakehouse.ingestion all --source-dir /tmp/sinteticos --genres synthetic
-```
-
-Con el historial real (carpeta `SPOTIFY_DATA_DIR` del `.env`): `... ingestion all` y luego `... ingestion genres`
-(consulta MusicBrainz una sola vez, ~1 hora). Re-correr no duplica nada. No mezcles sintéticos y reales en el
-mismo MinIO: para cambiar, `docker compose down -v`.
-
-### 3. Transformación (Bronce > Plata > Oro)
-
-```powershell
-docker compose exec lakehouse python -m lakehouse.transformation all
-```
-
-Limpia y enriquece en Plata, arma el modelo estrella y los KPIs en Oro, y reconcilia conteos entre capas
-(termina con cuatro líneas `[OK]`; si algo no cuadra, el comando falla). Re-correrlo no escribe filas nuevas en
-`fact_plays` (MERGE incremental).
-
-### 4. Gobernanza (calidad, accesos, catálogo y linaje)
-
-```powershell
-docker compose exec lakehouse python -m lakehouse.governance check
-```
-
-Corre los checks de calidad sobre Bronce, Plata y Oro, prueba los permisos de cada usuario de MinIO y escribe
-[`ENTREGABLES/03_calidad_y_linaje/CALIDAD_Y_LINAJE.md`](ENTREGABLES/03_calidad_y_linaje/CALIDAD_Y_LINAJE.md)
-(solo conteos). El catálogo y el linaje se generan desde los contratos con
-`uv run python -m lakehouse.governance docs`.
-
-### 5. Orquestación (Dagster: el pipeline corre solo)
-
-Dagster arranca con el stack en <http://localhost:3300> (`DAGSTER_PORT` en `.env`). Sus sensores vigilan la
-carpeta `SPOTIFY_DATA_DIR` y el bucket `landing`, así que **la primera vez corre los pasos 2 a 4 y el modelo (paso 6) sin
-que hagas nada**: Bronce, géneros, Plata, Oro, ML, checks por paso (si uno falla, lo siguiente no corre), reporte
-y salud. Luego
-repite el pipeline todos los días a las 6:00 y revisa la salud cada 6 horas.
-
-Para replicar sin datos reales, antes del paso 1 genera los sintéticos y apunta el `.env` a ellos (igual que CI):
+Sin datos reales, genera los sintéticos y apunta el `.env` a ellos (igual que CI):
 
 ```powershell
 uv run python -m lakehouse.ingestion synthetic --out sinteticos --rows 5000
 # en .env: SPOTIFY_DATA_DIR=./sinteticos y GENRES_SOURCE=synthetic (no consulta MusicBrainz)
 ```
 
-Comandos útiles:
+Con el historial real, `SPOTIFY_DATA_DIR` apunta a la carpeta de los JSON. No mezcles sintéticos y reales en el
+mismo MinIO; para cambiar, `docker compose down -v`.
 
 ```powershell
-docker compose exec lakehouse python -m lakehouse.orchestration status    # últimas corridas y checks
-docker compose exec lakehouse python -m lakehouse.orchestration health    # tamaños, versiones y alertas
-docker compose exec lakehouse python -m lakehouse.orchestration run --job lakehouse_full  # todo, a mano
+docker compose up -d --build         # la primera vez tarda (Java, PySpark, JARs y Superset)
+docker compose exec lakehouse python -m lakehouse.common.smoke
 ```
 
-`status` debe mostrar las corridas en `SUCCESS` y `Checks: SUCCEEDED=22`. En la UI, **Lineage** muestra el
-grafo (sale de los contratos) y **Automation** los sensores y schedules. CI
-([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) hace lo mismo con sintéticos en cada push.
+El smoke termina con `Smoke OK`. Servicios:
 
-Dagster corre una sola corrida a la vez. Si la máquina estuvo apagada a las 6:00, al levantar el stack corre el
-pipeline diario que se perdió; mientras tanto `run` se niega a correr otro (dos Spark a la vez agotan la memoria).
-Revisa `status` antes de correr algo a mano.
+| Servicio | Dirección | Acceso |
+|---|---|---|
+| MinIO (consola) | <http://localhost:9001> | Usuario y contraseña root del `.env` |
+| Dagster | <http://localhost:3300> | Sin usuario |
+| MLflow | <http://localhost:5000> | Sin usuario |
+| Superset | <http://localhost:8088> | `admin` con `SUPERSET_ADMIN_PASSWORD` del `.env` |
 
-### 6. Machine Learning (predicción de skip)
+#### 2. El pipeline corre solo (Dagster)
 
-Va dentro del pipeline (pasos `ml_features`, `ml_train` y `ml_predict`). A mano:
+Al levantar el stack, los sensores de Dagster ven los archivos de `SPOTIFY_DATA_DIR` y corren todo sin que hagas nada:
+
+- **Ingesta:** landing y Bronce; IP seudonimizada y registros malos a cuarentena.
+- **Géneros:** desde MusicBrainz, con caché (con datos reales tarda ~1 hora solo la primera vez).
+- **Plata y Oro:** limpieza, sesiones, modelo estrella, KPIs y reconciliación de conteos.
+- **ML:** features, entrenamiento e inferencia.
+- **Calidad y reporte:** checks después de cada paso (si uno falla, lo siguiente no corre), reporte de calidad y
+  salud.
+
+Después repite el pipeline todos los días a las 6:00 y revisa la salud cada 6 horas.
 
 ```powershell
-docker compose exec lakehouse python -m lakehouse.ml all   # features, entrenamiento e inferencia
+docker compose exec lakehouse python -m lakehouse.orchestration wait     # espera a que termine
+docker compose exec lakehouse python -m lakehouse.orchestration status   # corridas y checks
+docker compose exec lakehouse python -m lakehouse.orchestration health   # tamaños, versiones y alertas
 ```
 
-Lee solo de Oro: arma las features sin fuga, entrena con un corte por fechas, compara contra un baseline y registra
-el modelo en MLflow (<http://localhost:5000>, vista **Model training**). La versión que le gana al baseline recibe
-el alias `champion`, y la inferencia la usa para escribir `gold.ml_skip_predictions`. El resultado queda en
-[`ENTREGABLES/04_modelo_ml/ML_METRICAS.md`](ENTREGABLES/04_modelo_ml/ML_METRICAS.md). Para abrir el notebook
-[`notebooks/ml_skip.ipynb`](notebooks/ml_skip.ipynb): `uv sync --group notebook` y el kernel del `.venv`.
+`status` debe mostrar las corridas en `SUCCESS` y `Checks: SUCCEEDED=22`.
 
-### 7. Pruebas
+- **En la UI:** **Lineage** muestra el grafo (sale de los contratos) y **Automation** los sensores y schedules.
+- **Una corrida a la vez:** si la máquina estuvo apagada a las 6:00, al levantar el stack Dagster corre el pipeline
+  que se perdió. Mientras tanto, `run` se niega a correr otro, porque dos Spark a la vez agotan la memoria (H-011).
+
+#### 3. Cada pieza a mano (opcional)
+
+Los mismos comandos que Dagster envuelve. Re-correr no duplica nada:
+
+```powershell
+docker compose exec lakehouse python -m lakehouse.ingestion all          # landing + Bronce
+docker compose exec lakehouse python -m lakehouse.ingestion genres       # géneros (MusicBrainz)
+docker compose exec lakehouse python -m lakehouse.transformation all     # Plata + Oro + reconciliación
+docker compose exec lakehouse python -m lakehouse.governance check       # calidad por capa y accesos
+docker compose exec lakehouse python -m lakehouse.ml all                 # features, entrenamiento, inferencia
+docker compose exec lakehouse python -m lakehouse.orchestration run --job lakehouse_full  # todo por Dagster
+```
+
+#### 4. Gobernanza
+
+[`CALIDAD_Y_LINAJE.md`](ENTREGABLES/03_calidad_y_linaje/CALIDAD_Y_LINAJE.md) se reescribe en cada corrida, solo con
+conteos. El catálogo y el linaje salen de los contratos: `uv run python -m lakehouse.governance docs`.
+
+#### 5. Machine Learning
+
+MLflow (<http://localhost:5000>, vista **Model training**) guarda cada entrenamiento. La versión que le gana al
+baseline recibe el alias `champion`, y la inferencia la usa para escribir `gold.ml_skip_predictions`.
+
+- **Resultado:** [`ML_METRICAS.md`](ENTREGABLES/04_modelo_ml/ML_METRICAS.md).
+- **Notebook:** [`notebooks/ml_skip.ipynb`](notebooks/ml_skip.ipynb). Se abre con `uv sync --group notebook` y el
+  kernel del `.venv`.
+
+#### 6. Tablero de BI
+
+<http://localhost:8088/superset/dashboard/spotify-lakehouse/> (usuario `admin`). Trae:
+
+- 15 gráficas: KPIs, tendencias, plataformas, top artistas y géneros, hábitos, retención y modelo contra realidad.
+- 3 filtros: fecha, género y plataforma.
+
+Se importa solo desde [`bi/`](bi/) en cada arranque. Prueba en vivo de cada gráfica, con su tiempo:
+
+```powershell
+docker compose exec superset python /opt/lakehouse/bi/check.py   # termina con "15 de 15 graficas OK"
+```
+
+#### 7. Pruebas
 
 ```powershell
 uv sync                              # instala Python 3.11 y las dependencias del uv.lock
@@ -140,7 +179,12 @@ uv run pytest                        # las de Spark se saltan en local
 docker compose exec lakehouse pytest # todas, incluidas las de Spark
 ```
 
-Los pasos del pipeline completo se agregan conforme cierra cada fase.
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) corre en cada push:
+
+1. Lint y pruebas.
+2. MinIO con sus usuarios, MLflow y el pipeline completo por Dagster con sintéticos.
+3. Las pruebas con Spark.
+4. El tablero, con cada gráfica probada.
 
 ## Equipo
 

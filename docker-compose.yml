@@ -1,7 +1,7 @@
 # Responsable: Gabriel Alvarez Mendoza (Arquitecto de Datos / Lider)
 # Stack local del lakehouse (D1). Uso: copia .env.example a .env y corre `docker compose up -d --build`.
-# F5: Dagster corre en el contenedor lakehouse (localhost:3300) y MLflow aparte (5000); F7 agrega Superset.
-# Necesita en .env las MINIO_SECRET_* (README, paso 1).
+# F5: Dagster corre en el contenedor lakehouse (localhost:3300) y MLflow aparte (5000); F7: Superset (8088).
+# Necesita en .env las MINIO_SECRET_* y las SUPERSET_* (README, paso 1).
 
 name: lakehouse
 
@@ -131,6 +131,39 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+    restart: unless-stopped
+
+  superset:
+    # Tablero de BI (F7, D13, D26): Superset 6.1 + DuckDB leyendo Oro de MinIO con el usuario svc-bi.
+    build:
+      context: .
+      dockerfile: infra/superset/Dockerfile
+    image: lakehouse-superset:local
+    init: true
+    # Metadatos nuevos, admin del .env, import del tablero desde bi/ y luego el servidor (start.sh).
+    command: ["/bin/sh", "/opt/lakehouse/start.sh"]
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:?Falta SUPERSET_SECRET_KEY en .env (README paso 1)}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:?Falta SUPERSET_ADMIN_PASSWORD en .env (README paso 1)}
+      # Solo la contrasena de svc-bi (solo lee gold); el resto del .env no entra (minimo privilegio, D17).
+      MINIO_SECRET_BI: ${MINIO_SECRET_BI:?Falta MINIO_SECRET_BI en .env}
+      S3_ENDPOINT: http://minio:9000
+    ports:
+      - "${SUPERSET_PORT:-8088}:8088"
+    volumes:
+      # Codigo montado: cambiar el tablero (bi/) o la config solo pide reiniciar el contenedor.
+      - ./infra/superset/superset_config.py:/app/pythonpath/superset_config.py:ro
+      - ./infra/superset/start.sh:/opt/lakehouse/start.sh:ro
+      - ./bi:/opt/lakehouse/bi:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8088/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 180s
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
 volumes:

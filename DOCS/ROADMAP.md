@@ -1,6 +1,6 @@
 # Roadmap
 
-**Última actualización:** 2026-11-24 (F6 cerrada; sigue F7).
+**Última actualización:** 2026-11-24 (código de F7 a F10 listo; falta la sesión de verificación de Gabriel).
 **Entrega:** lunes 30 de noviembre de 2026 (clase 4 pm; Blackboard 11:59 pm).
 
 Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los commits. Lo que no se puede olvidar
@@ -12,8 +12,42 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
   - 325 checks sobre 17 tablas, 0 fallas.
   - 5 usuarios de MinIO con mínimo privilegio, verificados en vivo (41 de 41).
   - Catálogo, linaje y reporte generados en `ENTREGABLES/03_calidad_y_linaje/`.
-- 2026-11-24: **F6 cerrada. Sigue F7 (BI, Emilio): arrancar por sus casillas abajo.** Pendiente: CI en verde
-  con el commit de F6 (ahora levanta MLflow antes del pipeline).
+- 2026-11-24 (noche): **código y docs de F7, F8, F9 y F10 listos de un jalón.** Sigue la **sesión de verificación
+  de Gabriel**: un solo bloque de comandos, el que Claude le pasó en el chat. Ese bloque:
+  1. agrega `SUPERSET_*` al `.env`;
+  2. levanta el stack con Superset;
+  3. corre `orchestration wait`, `status` y `bi/check.py` con los datos reales;
+  4. hace la réplica desde un clon limpio (`infra/replica.ps1`);
+  5. toma las capturas del tablero.
+
+  Con lo que salga se ajustan los docs (tiempos reales del tablero, minutos de la réplica) y se marcan las casillas
+  pendientes de abajo.
+- 2026-11-26: **verificación en vivo con datos reales.**
+  - Pipeline: `lakehouse_full` SUCCESS en 6.8 min, `Checks: SUCCEEDED=22`, salud sin alertas.
+  - Tablero: 15 de 15 gráficas OK, todas en menos de 0.6 s.
+  - Se arreglaron H-012 (corridas huérfanas tras reiniciar el contenedor), H-013 y H-014 (Superset).
+  - Nuevo `infra/verificar.ps1`: cada paso deja su log en `logs/verificacion/` y Claude lo lee de ahí.
+  - Falta: commit y push (CI), la réplica (`pwsh -File infra/verificar.ps1 -Steps replica`) y las capturas.
+  - **F7 (BI):**
+    - `bi/sql/` (6 datasets que solo leen `s3://gold`) y `bi/dashboard.py` (15 gráficas, 3 filtros y el acomodo).
+      Este último genera el export de Superset que el contenedor importa en cada arranque (D26).
+    - `bi/check.py`: prueba en vivo por la API, con el tiempo de cada gráfica.
+    - `infra/superset/`: Superset 6.1.0 por digest, DuckDB 1.5.6 con `delta` y `httpfs`, y el secreto de `svc-bi`
+      solo en la conexión.
+    - Servicio `superset` en el compose (8088) y paso de Superset en CI.
+    - Pruebas locales: el SQL de cada dataset y gráfica corre en DuckDB contra el esquema de los contratos, y el
+      export de `ENTREGABLES/05_tablero_bi/` está al día.
+  - **F8:**
+    - README final: opción de un comando y paso a paso.
+    - `infra/replica.ps1`: réplica de punta a punta, sin pasos manuales.
+    - `orchestration wait`: espera a que los sensores terminen el pipeline.
+    - Diagrama final con su PNG (mermaid-cli 12.2.0; una prueba lo mantiene igual al Mermaid).
+    - `ENTREGABLES/README.md` contra la rúbrica.
+    - Guía de Gabriel final; guías 06 y 07 revisadas contra el código.
+  - **F9:** `00_GUION_VIDEO.md` (orden, tiempos, pantallas y checklist para grabar).
+  - **F10:** `PAQUETE_EQUIPO.md`. Falta la sesión de explicación a fondo (Claude con Gabriel).
+  - **Local:** ruff limpio; 275 en verde, 17 saltadas (Spark). `uv.lock` agrega DuckDB al grupo `dev`.
+- 2026-11-24: F6 cerrada. CI con el commit de F6 sin confirmar todavía (lo cubre el push de F7 a F10).
   - **Código:** `src/lakehouse/ml/` (`features`, `model`, `registry`, `report`, `__main__` con `features`,
     `train`, `predict` y `all`); contratos `gold.ml_skip_features` y `gold.ml_skip_predictions`; pasos de Dagster
     `ml_features`, `ml_train` y `ml_predict` (grupo `ml`, usuario `svc-ml`); notebook `notebooks/ml_skip.ipynb`.
@@ -88,10 +122,10 @@ Gabriel y Claude implementan todo; Gabriel corre lo pesado y hace todos los comm
 | F4 | Gobernanza: contratos, calidad, catálogo, linaje, seguridad | Victor | mié 25 | Hecha (lun 23) | `04_VICTOR_GOBERNANZA.md` |
 | F5 | Orquestación, CI/CD, monitoreo y MLflow | Nora | jue 26 | Hecha (lun 23, CI en verde) | `07_NORA_DEVOPS.md` |
 | F6 | Modelo de ML (skip) | Fernando | jue 26 a vie 27 | Hecha (mar 24) | `06_FERNANDO_ML.md` |
-| F7 | Tablero de BI | Emilio | vie 27 a sáb 28 | Pendiente | `05_EMILIO_BI.md` |
-| F8 | Cierre técnico: README, ENTREGABLES, diagrama final, prueba de réplica | Gabriel | sáb 28 | Pendiente | `01_GABRIEL_ARQUITECTO.md` (final) |
-| F9 | Guion, ensayo, video y entrega | Todos | dom 29 a lun 30 | Pendiente | `00_GUION_VIDEO.md` |
-| F10 | Explicación a fondo para Gabriel y paquete para el equipo | Gabriel + Claude | dom 29 | Pendiente | `PAQUETE_EQUIPO.md` |
+| F7 | Tablero de BI | Emilio | vie 27 a sáb 28 | Código listo (mar 24); falta corrida real y capturas | `05_EMILIO_BI.md` |
+| F8 | Cierre técnico: README, ENTREGABLES, diagrama final, prueba de réplica | Gabriel | sáb 28 | Código listo (mar 24); falta correr la réplica | `01_GABRIEL_ARQUITECTO.md` (final) |
+| F9 | Guion, ensayo, video y entrega | Todos | dom 29 a lun 30 | Guion listo; falta ensayo y video | `00_GUION_VIDEO.md` |
+| F10 | Explicación a fondo para Gabriel y paquete para el equipo | Gabriel + Claude | dom 29 | Paquete listo; falta la sesión | `PAQUETE_EQUIPO.md` |
 
 Holgura: el domingo 29 queda libre de código. Si una fase se atrasa se recorta lo opcional, nunca un entregable.
 
@@ -214,28 +248,30 @@ Holgura: el domingo 29 queda libre de código. Si una fase se atrasa se recorta 
 
 ## F7. Tablero de BI (Emilio, vie 27 a sáb 28)
 
-- [ ] `infra/superset/` (imagen con `duckdb-engine`) en el compose; `bi/` con las vistas sobre Oro
-      (`delta_scan` en MinIO).
-- [ ] KPIs: horas escuchadas y tendencia, top artistas y géneros, retención de artistas, hábitos por hora/día,
-      tasa de skip y predicciones del modelo; filtros de fecha, género y plataforma probados.
-- [ ] Export del tablero en `bi/` que se importa al arrancar.
-- [ ] `ENTREGABLES/05_tablero_bi/`: capturas (aprobadas por el dueño de los datos), copia del export y cómo
+- [x] `infra/superset/` (imagen con `duckdb-engine`) en el compose; `bi/` con las vistas sobre Oro
+      (`delta_scan` en MinIO). Son datasets virtuales, no vistas de DuckDB (D26).
+- [x] KPIs: horas escuchadas y tendencia, top artistas y géneros, retención de artistas, hábitos por hora/día,
+      tasa de skip y predicciones del modelo; filtros de fecha, género y plataforma (columnas probadas en local).
+- [x] Export del tablero que se importa al arrancar: lo genera `bi/dashboard.py`.
+- [x] Corrida real: `bi/check.py` con `15 de 15 graficas OK`, todas en menos de 0.6 s (2026-11-26).
+- [ ] CI en verde con el tablero.
+- [ ] `ENTREGABLES/05_tablero_bi/`: capturas aprobadas por el dueño de los datos. Ya están la copia del export y cómo
       abrirlo.
-- [ ] `MDS_DE_ESTUDIO/05_EMILIO_BI.md`.
+- [x] `MDS_DE_ESTUDIO/05_EMILIO_BI.md`.
 - **Listo cuando:** el tablero carga en segundos, ningún filtro se rompe y se levanta solo desde un clon limpio.
 
 ## F8. Cierre técnico (Gabriel, sáb 28)
 
-- [ ] README raíz final: qué es, diagrama, requisitos, cómo replicar paso a paso (sintéticos y reales), equipo.
-- [ ] `ENTREGABLES/README.md`: índice entregable por entregable contra la rúbrica, con rutas al código.
-- [ ] Diagrama final; reportes regenerados con la última corrida.
+- [x] README raíz final: qué es, diagrama, requisitos, cómo replicar paso a paso (sintéticos y reales), equipo.
+- [x] `ENTREGABLES/README.md`: índice entregable por entregable contra la rúbrica, con rutas al código.
+- [x] Diagrama final (Mermaid + `arquitectura.png`). Los reportes se regeneran con la corrida final de Gabriel.
 - [ ] Prueba de réplica: clon limpio, `.env` desde el ejemplo, `uv sync`, compose up, pipeline con sintéticos,
-      tablero arriba.
-- [ ] `MDS_DE_ESTUDIO/01_GABRIEL_ARQUITECTO.md` final; revisar las 7 guías contra el código final.
+      tablero arriba. El script `infra/replica.ps1` ya está; falta que Gabriel lo corra.
+- [x] `MDS_DE_ESTUDIO/01_GABRIEL_ARQUITECTO.md` final; revisar las 7 guías contra el código final.
 
 ## F9. Presentación y entrega (todos, dom 29 a lun 30)
 
-- [ ] `MDS_DE_ESTUDIO/00_GUION_VIDEO.md`: 10 min, ~1:20 por integrante, en el orden del flujo de datos.
+- [x] `MDS_DE_ESTUDIO/00_GUION_VIDEO.md`: 10 min, ~1:20 por integrante, en el orden del flujo de datos.
 - [ ] Ensayo cronometrado; grabar el video (máx. 10 min).
 - [ ] Link del video en `ENTREGABLES/06_video/` y en `ENTREGABLES/README.md`; repo y video a Blackboard.
 - [ ] Lunes 30, 4 pm: presentación (demo en vivo; checklist de demo en NO_OLVIDAR).
@@ -244,7 +280,7 @@ Holgura: el domingo 29 queda libre de código. Si una fase se atrasa se recorta 
 
 - [ ] Sesión donde Claude le explica a Gabriel todo el proyecto a fondo: flujo completo, cada decisión y su
       porqué, cómo se corre, qué puede fallar en la demo y cómo responder.
-- [ ] `MDS_DE_ESTUDIO/PAQUETE_EQUIPO.md`: qué mandarle a cada integrante (su guía, su parte del guion, qué
+- [x] `MDS_DE_ESTUDIO/PAQUETE_EQUIPO.md`: qué mandarle a cada integrante (su guía, su parte del guion, qué
       revisar y qué preguntas practicar) y en qué orden.
 
 ## Opcional (solo si sobra tiempo)

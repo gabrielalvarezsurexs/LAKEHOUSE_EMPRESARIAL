@@ -10,7 +10,15 @@ concurrency:
 # Monitoreo de corridas: el daemon cancela una corrida colgada (la primera de MusicBrainz tarda ~1 h).
 run_monitoring:
   enabled: true
-  max_runtime_seconds: 10800
+  max_runtime_seconds: 7200
+
+# Reintento automatico (H-012): una corrida que murio por un reinicio del contenedor (la marca
+# `orchestration recover` al arrancar) se relanza una vez desde donde quedo. Si fallo un paso o un check
+# bloqueante no se reintenta: el paso ya tiene sus reintentos y repetir un check malo no lo arregla.
+run_retries:
+  enabled: true
+  max_retries: 1
+  retry_on_asset_or_op_failure: false
 
 # Datos de un integrante: nada sale a servicios de terceros.
 telemetry:

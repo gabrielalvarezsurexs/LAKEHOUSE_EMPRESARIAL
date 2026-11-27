@@ -1,7 +1,9 @@
 """CLI de orquestacion. Dentro del contenedor: python -m lakehouse.orchestration <comando> (ver --help).
 
 health: salud del lakehouse (tamanos, versiones, filas y alertas); run: corre un job de Dagster completo en
-este proceso (lo usa CI) y falla si un paso o un check bloqueante falla; status: ultimas corridas y checks.
+este proceso (lo usa CI) y falla si un paso o un check bloqueante falla; status: ultimas corridas y checks;
+wait: espera a que el pipeline automatico termine (replica y demo); recover: al arrancar el contenedor,
+marca las corridas que murieron con el para que Dagster las reintente.
 Responsable: Nora Valentina Frias Alpizar (Ingeniera DevOps / MLOps)
 """
 
@@ -119,6 +121,105 @@ def _status(args: argparse.Namespace) -> int:
     return 0
 
 
+ORPHAN_STATUSES = ("STARTING", "STARTED", "CANCELING")
+ORPHAN_MESSAGE = "El contenedor se reinicio con esta corrida a medias (H-012); Dagster la reintenta sola."
+
+
+def recover_orphan_runs(instance) -> list[str]:
+    """Al arrancar el contenedor ningun proceso de corrida sigue vivo: las 'en curso' quedaron huerfanas.
+
+    El lanzador por defecto no detecta un worker muerto (la corrida se queda en STARTED hasta
+    max_runtime_seconds). Se marcan como falla del worker, no de un paso, para que run_retries las relance.
+    """
+    import dagster as dg
+    from dagster._core.events import JobFailureData, RunFailureReason
+
+    statuses = [dg.DagsterRunStatus[s] for s in ORPHAN_STATUSES]
+    recovered = []
+    for run in instance.get_runs(filters=dg.RunsFilter(statuses=statuses)):
+        if run.status == dg.DagsterRunStatus.CANCELING:
+            instance.report_run_canceled(run, message=ORPHAN_MESSAGE)  # ya la habian mandado cancelar
+        else:
+            failure = JobFailureData(error=None, failure_reason=RunFailureReason.RUN_WORKER_RESTART)
+            instance.report_run_failed(run, message=ORPHAN_MESSAGE, job_failure_data=failure)
+        recovered.append(f"{run.job_name} {run.run_id[:8]} {run.status.value}")
+    return recovered
+
+
+def _recover(args: argparse.Namespace) -> int:
+    """Lo corre el contenedor antes de levantar Dagster (CMD de infra/app/Dockerfile)."""
+    import dagster as dg
+
+    if not os.environ.get("DAGSTER_HOME"):
+        log.error("Sin DAGSTER_HOME no hay historial: corre esto dentro del contenedor lakehouse.")
+        return 1
+    with dg.DagsterInstance.get() as instance:
+        recovered = recover_orphan_runs(instance)
+    if recovered:
+        log.warning(
+            "Corridas huerfanas del arranque anterior: %s. Se reintentan solas.", "; ".join(recovered)
+        )
+    else:
+        log.info("Sin corridas huerfanas.")
+    return 0
+
+
+PIPELINE_JOBS = ("pipeline_from_landing", "lakehouse_full")
+WILL_RETRY_TAG = "dagster/will_retry"  # lo pone Dagster cuando run_retries va a relanzar la corrida
+
+
+def last_pipeline_status(instance) -> str | None:
+    """Estado de la corrida mas reciente que llega hasta Oro y ML (la dispara el sensor o el schedule)."""
+    for run in instance.get_runs(limit=50):
+        if run.job_name in PIPELINE_JOBS:
+            if run.status.value == "FAILURE" and run.tags.get(WILL_RETRY_TAG) == "true":
+                return "RETRYING"  # el reintento aun no aparece en la cola: no es el resultado final
+            return run.status.value
+    return None
+
+
+def _wait(args: argparse.Namespace) -> int:
+    """Espera a que Dagster quede sin corridas (los sensores ya dispararon todo) y reporta la del pipeline."""
+    import time
+
+    import dagster as dg
+
+    if not os.environ.get("DAGSTER_HOME"):
+        log.error("Sin DAGSTER_HOME no hay historial: corre esto dentro del contenedor lakehouse.")
+        return 1
+    instance = dg.DagsterInstance.get()
+    deadline = time.monotonic() + args.timeout
+    idle_since: float | None = None
+    try:
+        while True:
+            busy = active_runs(instance)
+            status = last_pipeline_status(instance)
+            now = time.monotonic()
+            idle_since = None if busy else (idle_since or now)
+            # Tras ingest_landing, el sensor de landing tarda hasta 30 s en lanzar el pipeline.
+            settled = idle_since is not None and now - idle_since >= args.settle
+            if settled and status not in (None, "RETRYING"):
+                if status == "SUCCESS":
+                    log.info("Pipeline listo: la ultima corrida termino en SUCCESS.")
+                    return 0
+                log.error("La ultima corrida del pipeline termino en %s: revisa status o la UI.", status)
+                return 1
+            # El daemon relanza en segundos; si no aparece (p. ej. su primer arranque ignora fallas previas),
+            # no tiene caso esperar hasta el timeout.
+            if status == "RETRYING" and idle_since is not None and now - idle_since >= 3 * args.settle:
+                log.error(
+                    "Dagster no lanzo el reintento del pipeline: correlo con `run --job lakehouse_full`."
+                )
+                return 1
+            if now > deadline:
+                log.error("Tiempo agotado (%s s). En curso: %s", args.timeout, "; ".join(busy) or "nada")
+                return 1
+            log.info("Esperando: %s", "; ".join(busy) or f"sin corridas (ultimo pipeline: {status})")
+            time.sleep(args.poll)
+    finally:
+        instance.dispose()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m lakehouse.orchestration", description=__doc__.split("\n")[0]
@@ -137,12 +238,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     status = sub.add_parser("status", help="Ultimas corridas y resultado de cada check (contenedor)")
     status.add_argument("--limit", type=int, default=8)
+    wait = sub.add_parser("wait", help="Espera a que termine el pipeline automatico (contenedor)")
+    wait.add_argument("--timeout", type=int, default=3600, help="Segundos maximos de espera")
+    wait.add_argument("--settle", type=int, default=90, help="Segundos sin corridas para darlo por terminado")
+    wait.add_argument("--poll", type=int, default=15, help="Cada cuantos segundos revisa")
+    sub.add_parser(
+        "recover", help="Marca como fallidas las corridas que murieron con el contenedor (arranque)"
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    handlers = {"health": _health, "run": _run, "status": _status}
+    handlers = {"health": _health, "run": _run, "status": _status, "wait": _wait, "recover": _recover}
     try:
         return handlers[args.command](args)
     except LakehouseError as exc:

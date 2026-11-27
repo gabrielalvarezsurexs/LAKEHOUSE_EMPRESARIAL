@@ -1,6 +1,6 @@
 # Calidad y linaje
 
-> Generado por `python -m lakehouse.governance check` el 2026-11-25 00:02 UTC sobre las tablas de MinIO.
+> Generado por `python -m lakehouse.governance check` el 2026-11-26 15:55 UTC sobre las tablas de MinIO.
 > No se edita a mano. Solo conteos: ningún valor de los datos.
 > Catálogo: [CATALOGO.md](CATALOGO.md). Linaje de columnas: [LINAJE.md](LINAJE.md).
 
@@ -25,7 +25,7 @@
 | ✅ | plata = oro | plays = fact_plays: 15628 vs 15628 |
 | ✅ | dim_track = canciones de plata | dim_track = track_uri distintos en plays: 3628 vs 3628 |
 | ✅ | kpi diario = fact con fecha | fact_plays con date_key = suma de plays diarios: 15618 vs 15618 |
-| ✅ | ingesta reciente | hace 1 dias (umbral 30) |
+| ✅ | ingesta reciente | hace 3 dias (umbral 30) |
 | ✅ | plata al dia con bronce |  |
 | ✅ | oro al dia con plata |  |
 
@@ -172,6 +172,8 @@ flowchart LR
   gold_dim_artist --> consumer_bi
   gold_dim_track --> consumer_bi
   gold_dim_platform --> consumer_bi
+  gold_fact_plays --> consumer_bi
+  gold_ml_skip_features --> consumer_bi
   gold_ml_skip_predictions --> consumer_bi
 ```
 
@@ -242,7 +244,7 @@ flowchart LR
 | ✅ | rango | rows_quarantined en [0, inf] |  |
 | ✅ | no_nulos | ingested_at no nulo |  |
 | ✅ | regla | leidas = cargadas + cuarentena |  |
-| ✅ | frescura | ingesta reciente | hace 1 dias (umbral 30) |
+| ✅ | frescura | ingesta reciente | hace 3 dias (umbral 30) |
 
 ### `bronze.musicbrainz_artists` (1,301 filas; 15 de 15 OK)
 

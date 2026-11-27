@@ -42,7 +42,8 @@ con Spark), con gobernanza, un modelo de ML que lee de Oro y un tablero de BI. I
 
 - **Todo lo local con uv:** `uv sync`, `uv run pytest`, `uv run ruff check .`, `uv run python -m lakehouse...`.
   Nunca `pip install`. Python 3.11 fijado en `.python-version`.
-- Servicios (MinIO, Spark, Dagster, MLflow, Superset) con Docker Compose; la imagen instala con `uv sync --frozen`.
+- Servicios (MinIO, Spark, Dagster, MLflow, Superset) con Docker Compose; la imagen del lakehouse instala con
+  `uv sync --frozen` (la de Superset es aparte: `infra/superset/Dockerfile`).
 - Infra (F1): `docker compose up -d --build`; smoke: `docker compose exec lakehouse python -m lakehouse.common.smoke`;
   pruebas con Spark: `docker compose exec lakehouse pytest`. El contenedor monta `src/` y `tests/` (sin rebuild).
 - Ingesta (F2), dentro del contenedor: `python -m lakehouse.ingestion all` (landing + Bronce; idempotente),
@@ -59,7 +60,8 @@ con Spark), con gobernanza, un modelo de ML que lee de Oro y un tablero de BI. I
 - Credenciales de MinIO: cada CLI usa `get_settings().for_role("<rol>")` (D17); nunca el root.
 - Orquestación (F5), dentro del contenedor:
   - **Arranque:** Dagster se levanta con el stack en `localhost:3300` (D24). La primera vez, los sensores corren
-    el pipeline completo solos.
+    el pipeline completo solos. Antes de Dagster, el contenedor corre `... recover`: una corrida que murió con
+    el contenedor anterior se marca y Dagster la reintenta una vez (H-012).
   - **Comandos:** `python -m lakehouse.orchestration status` (corridas y checks), `... health` (salud y alertas) y
     `... run --job <lakehouse_full|ingest_landing|pipeline_from_landing|health_only>`. `run` es lo que corre CI y
     falla si un paso o un check bloqueante falla. Se niega si el daemon ya tiene una corrida en curso o en cola
@@ -69,6 +71,15 @@ con Spark), con gobernanza, un modelo de ML que lee de Oro y un tablero de BI. I
 - ML (F6), dentro del contenedor: `python -m lakehouse.ml all` (features, entrenamiento con MLflow e inferencia;
   también `features`, `train` o `predict`). Va dentro del pipeline de Dagster. Escribe
   `ENTREGABLES/04_modelo_ml/`. Notebook local: `uv sync --group notebook`.
+- BI (F7, D26): Superset en `localhost:8088` importa el tablero de `bi/` en cada arranque (metadatos nuevos).
+  - **Prueba en vivo:** `docker compose exec superset python /opt/lakehouse/bi/check.py`.
+  - **Tras tocar `bi/`:** `uv run python bi/dashboard.py --out ENTREGABLES/05_tablero_bi/tablero_export.zip` (si
+    no, la prueba falla) y `docker compose restart superset`.
+- **Verificación con logs en archivo:** `pwsh -File infra/verificar.ps1 [-Steps up,wait,run,status,health,bi,pytest,replica]`
+  deja `logs/verificacion/RESUMEN.log`, un log por paso y los de docker (gitignored). Se leen de ahí, no de
+  la consola.
+- Espera al pipeline automático: `python -m lakehouse.orchestration wait`. Réplica desde un clon limpio (F8):
+  `pwsh -File infra/replica.ps1` (con el stack principal apagado).
 - Los comandos exactos de cada pieza se agregan aquí al cerrar su fase.
 
 ## Seguridad y privacidad
